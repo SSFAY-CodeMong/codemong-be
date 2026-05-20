@@ -1,0 +1,7 @@
+spring:
+  application:
+    name: codemong-be
+
+server:
+  port: 8080
+

@@ -1,0 +1,12 @@
+build/
+.gradle/
+out/
+target/
+*.class
+.DS_Store
+.idea/
+*.iml
+
+src/main/resources/application-*.yml
+
+.gitmessage.txt
