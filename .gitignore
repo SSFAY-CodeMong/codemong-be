@@ -10,3 +10,4 @@ target/
 src/main/resources/application-*.yml
 
 .gitmessage.txt
+.env
