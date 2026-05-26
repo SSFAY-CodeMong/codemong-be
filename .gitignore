@@ -12,3 +12,4 @@ src/main/resources/application-*.yml
 .gitmessage.txt
 .env
 src/main/resources/application.yml
+*.yml
