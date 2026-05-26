@@ -82,19 +82,39 @@ public class GithubServiceImpl implements GithubService {
             // 브랜치는 board-step01-260522 형식이므로 process 테이블조회가 필요함
 
             Map<String, GHBranch> branches = repo.getBranches();
-            if(branches.containsKey(branchName)) throw new RuntimeException();
+            if (branches.containsKey(branchName)) {
+                throw new IllegalStateException("이미 존재하는 브랜치입니다: " + branchName);
+            }
 
 
             // 3. 브랜치 생성
 
-            GHRef ref = repo.getRef("heads/main");
+            String baseBranchName = findBaseBranchName(repo, branches);
+            GHRef ref = repo.getRef("heads/" + baseBranchName);
             String sha = ref.getObject().getSha();
 
-            return repo.createRef("refs/heads/"+branchName, sha);
+            return repo.createRef("refs/heads/" + branchName, sha);
 
         } catch (IOException e) {
-            log.error("Failed to create GitHub repository", e);
+            log.error("Failed to create GitHub branch", e);
             throw new RuntimeException(e);
         }
+    }
+
+    private String findBaseBranchName(GHRepository repo, Map<String, GHBranch> branches) {
+        String defaultBranch = repo.getDefaultBranch();
+        if (defaultBranch != null && branches.containsKey(defaultBranch)) {
+            return defaultBranch;
+        }
+
+        if (branches.containsKey("main")) {
+            return "main";
+        }
+
+        if (branches.containsKey("master")) {
+            return "master";
+        }
+
+        throw new IllegalStateException("브랜치를 생성할 기준 브랜치가 없습니다.");
     }
 }

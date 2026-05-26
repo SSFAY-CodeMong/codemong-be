@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -74,7 +75,10 @@ public class GithubController {
         body.put("email", me.getEmail());
         body.put("url", me.getHtmlUrl());
 
-        body.put("repos", repos.values());
+        List<Map<String, Object>> repoInfos = repos.values().stream()
+                .map(this::toRepoInfo)
+                .toList();
+        body.put("repos", repoInfos);
 
         return ResponseEntity
                 .status(HttpStatus.OK)
@@ -119,13 +123,26 @@ public class GithubController {
                 2. repo information
     """)
     public ResponseEntity<?> gitGenerateBranchTest() throws IOException {
-        GHRef branch = githubService.gitGenerateBranchTest("codemong-tester/test-repo0");
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(branch + "가 생성되었습니다.");
+        try {
+            GHRef branch = githubService.gitGenerateBranchTest("codemong-tester/test-repo0");
+            return ResponseEntity
+                    .status(HttpStatus.CREATED)
+                    .body(branch.getRef() + "가 생성되었습니다.");
+        } catch (IllegalStateException e) {
+            return ResponseEntity
+                    .status(HttpStatus.CONFLICT)
+                    .body(e.getMessage());
+        }
     }
 
-
-
+    private Map<String, Object> toRepoInfo(GHRepository repo) {
+        Map<String, Object> repoInfo = new LinkedHashMap<>();
+        repoInfo.put("name", repo.getName());
+        repoInfo.put("fullName", repo.getFullName());
+        repoInfo.put("private", repo.isPrivate());
+        repoInfo.put("url", repo.getHtmlUrl());
+        repoInfo.put("defaultBranch", repo.getDefaultBranch());
+        return repoInfo;
+    }
 
 }
