@@ -27,6 +27,46 @@ public class GithubServiceImpl implements GithubService {
         }
     }
 
+    @Override
+    public GHRepository createProjectRepository(String token, String projectName) {
+        try {
+            GitHub gitHub = new GitHubBuilder().withOAuthToken(token).build();
+            Map<String, GHRepository> repositories = gitHub.getMyself().getRepositories();
+
+            String repositoryNamePrefix = "codemong-" + normalizeRepositoryName(projectName);
+            int repoNum = 0;
+            String repositoryName = repositoryNamePrefix + "-" + repoNum;
+            while (repositories.containsKey(repositoryName)) {
+                repoNum++;
+                repositoryName = repositoryNamePrefix + "-" + repoNum;
+            }
+
+            log.info("Creating GitHub repository: {}", repositoryName);
+
+            return gitHub.createRepository(repositoryName)
+                    .description("Codemong project repository")
+                    .private_(true)
+                    .autoInit(true)
+                    .create();
+        } catch (IOException e) {
+            log.error("Failed to create GitHub project repository", e);
+            throw new RuntimeException(e);
+        }
+    }
+
+    private String normalizeRepositoryName(String projectName) {
+        String normalized = projectName.toLowerCase()
+                .replaceAll("[^a-z0-9-]", "-")
+                .replaceAll("-+", "-")
+                .replaceAll("^-|-$", "");
+
+        if (normalized.isBlank()) {
+            throw new IllegalArgumentException("프로젝트 이름으로 레포지토리명을 만들 수 없습니다.");
+        }
+
+        return normalized;
+    }
+
 
     @Override
     public String connectTest(String param) {

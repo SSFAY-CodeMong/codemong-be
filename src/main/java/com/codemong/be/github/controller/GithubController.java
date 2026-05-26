@@ -4,6 +4,8 @@ import com.codemong.be.github.service.GithubService;
 import com.codemong.be.global.exception.CustomException;
 import com.codemong.be.global.exception.ErrorCode;
 import com.codemong.be.global.jwt.JwtProvider;
+import com.codemong.be.project.entity.Project;
+import com.codemong.be.project.repository.ProjectRepository;
 import com.codemong.be.user.entity.User;
 import com.codemong.be.user.repository.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,6 +19,7 @@ import org.kohsuke.github.GHRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,6 +40,7 @@ public class GithubController {
     private final GithubService githubService;
     private final JwtProvider jwtProvider;
     private final UserRepository userRepository;
+    private final ProjectRepository projectRepository;
 
     @GetMapping("/repositories")
     @Operation(summary = "사용자 레포지토리 조회")
@@ -68,6 +72,23 @@ public class GithubController {
                 .map(this::toRepoInfo)
                 .toList();
         return ResponseEntity.ok(repoInfos);
+    }
+
+    @PostMapping("/repositories/{projectId}")
+    @Operation(summary = "프로젝트 GitHub Repository 생성")
+    public ResponseEntity<?> createProjectRepository(
+            @PathVariable Long projectId,
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader
+    ) {
+        User user = getAuthenticatedUser(authorizationHeader);
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new CustomException(ErrorCode.PROJECT_NOT_FOUND));
+
+        GHRepository repository = githubService.createProjectRepository(user.getGithubToken(), project.getName());
+
+        return ResponseEntity
+                .status(HttpStatus.CREATED)
+                .body(toRepoInfo(repository));
     }
 
 
@@ -187,6 +208,24 @@ public class GithubController {
         repoInfo.put("url", repo.getHtmlUrl());
         repoInfo.put("defaultBranch", repo.getDefaultBranch());
         return repoInfo;
+    }
+
+    private User getAuthenticatedUser(String authorizationHeader) {
+        if (authorizationHeader == null || authorizationHeader.isBlank()) {
+            throw new CustomException(ErrorCode.MISSING_TOKEN);
+        }
+        if (!authorizationHeader.startsWith("Bearer ")) {
+            throw new CustomException(ErrorCode.INVALID_AUTH_HEADER);
+        }
+
+        String accessToken = authorizationHeader.substring(7);
+        if (!jwtProvider.validateToken(accessToken)) {
+            throw new CustomException(ErrorCode.INVALID_TOKEN);
+        }
+
+        Long userId = jwtProvider.getUserId(accessToken);
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_TOKEN));
     }
 
 }

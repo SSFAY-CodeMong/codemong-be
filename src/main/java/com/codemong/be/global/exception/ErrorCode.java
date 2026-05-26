@@ -22,7 +22,10 @@ public enum ErrorCode {
     KMS_DECRYPTION_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "토큰 복호화에 실패하였습니다.", "50054"),
 
     //OAuth
-    OAUTH_LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "OAuth 로그인 처리에 실패하였습니다.", "40105");
+    OAUTH_LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "OAuth 로그인 처리에 실패하였습니다.", "40105"),
+
+    //Project
+    PROJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "프로젝트를 찾을 수 없습니다.", "40401");
 
     private final HttpStatus httpStatus;
     private final String message;
