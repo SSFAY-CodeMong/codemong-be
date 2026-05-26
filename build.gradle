@@ -19,6 +19,23 @@ repositories {
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-web'
+
+    // Swagger
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9")
+
+    ////////////////// Lombok /////////////////////
+    compileOnly 'org.projectlombok:lombok:1.18.46'
+    annotationProcessor 'org.projectlombok:lombok:1.18.46'
+    runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
+
+    testCompileOnly 'org.projectlombok:lombok:1.18.46'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.46'
+    ///////////////////////////////////////////////
+
+    ////////////////// Github /////////////////////
+    implementation 'org.kohsuke:github-api:1.330'
+    ///////////////////////////////////////////////
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
@@ -26,4 +43,3 @@ dependencies {
 tasks.named('test') {
     useJUnitPlatform()
 }
-
