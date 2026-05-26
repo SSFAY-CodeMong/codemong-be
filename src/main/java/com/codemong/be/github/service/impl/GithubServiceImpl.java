@@ -16,6 +16,18 @@ public class GithubServiceImpl implements GithubService {
     @Value("${github.token}")
     private String token;
 
+
+    @Override
+    public Map<String, GHRepository> getRepositories(String token) {
+        try {
+            GitHub gitHub = new GitHubBuilder().withOAuthToken(token).build();
+            return gitHub.getMyself().getRepositories();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
     @Override
     public String connectTest(String param) {
         return param;

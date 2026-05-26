@@ -1,8 +1,5 @@
 package com.codemong.be.global.oauth2.service;
 
-import com.codemong.be.global.exception.CustomException;
-import com.codemong.be.global.exception.ErrorCode;
-import com.codemong.be.global.kms.KmsService;
 import com.codemong.be.global.oauth2.user.CustomOAuth2User;
 import com.codemong.be.role.entity.Role;
 import com.codemong.be.role.repository.RoleRepository;
@@ -13,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
-import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,7 +22,6 @@ import java.util.Map;
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
-    private final KmsService kmsService;
 
     @Override
     @Transactional
@@ -46,6 +41,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
         if(user == null){
             String accessToken = userRequest.getAccessToken().getTokenValue();
+            // TODO: KMS 설정이 준비되면 다시 암호화해서 저장해야 합니다.
+            /*
             String encryptToken;
             try {
                 encryptToken = kmsService.encrypt(accessToken);
@@ -54,6 +51,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                         new OAuth2Error(ErrorCode.OAUTH_LOGIN_FAILED.getErrorCode(), ErrorCode.OAUTH_LOGIN_FAILED.getMessage(), null)
                 );
             }
+             */
             Role userRole = roleRepository.findById(1L)
                     .orElseThrow(()-> new RuntimeException("해당 Role이 없습니다."));
 
@@ -64,7 +62,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                                 .email(email)
                                 .role(userRole)
                                 .htmlUrl(htmlUrl)
-                                .githubToken(encryptToken)
+                                .githubToken(accessToken) // 평문 하드 코딩 부분. KMS 수정
                                 .build()
                         );
 

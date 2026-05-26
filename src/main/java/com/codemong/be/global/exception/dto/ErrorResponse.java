@@ -2,8 +2,10 @@ package com.codemong.be.global.exception.dto;
 
 import com.codemong.be.global.exception.ErrorCode;
 import lombok.Builder;
+import lombok.Getter;
 import org.springframework.http.ResponseEntity;
 
+@Getter
 @Builder
 public class ErrorResponse {
     private final int status;

@@ -3,6 +3,7 @@ package com.codemong.be.global.kms;
 import com.codemong.be.global.exception.CustomException;
 import com.codemong.be.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.SdkBytes;
@@ -18,6 +19,7 @@ import java.util.Base64;
 
 @Service
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "aws.kms.enabled", havingValue = "true")
 public class KmsService {
 
     private final KmsClient kmsClient;
