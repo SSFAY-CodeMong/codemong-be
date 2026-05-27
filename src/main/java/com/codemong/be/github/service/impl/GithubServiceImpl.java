@@ -1,6 +1,8 @@
 package com.codemong.be.github.service.impl;
 
 import com.codemong.be.github.service.GithubService;
+import com.codemong.be.global.kms.KmsService;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.kohsuke.github.*;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,16 +13,20 @@ import java.util.Map;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class GithubServiceImpl implements GithubService {
 
     @Value("${github.token}")
     private String token;
 
+    private final KmsService kmsService;
+
 
     @Override
     public Map<String, GHRepository> getRepositories(String token) {
         try {
-            GitHub gitHub = new GitHubBuilder().withOAuthToken(token).build();
+            String decryptToken = kmsService.decrypt(token);
+            GitHub gitHub = new GitHubBuilder().withOAuthToken(decryptToken).build();
             return gitHub.getMyself().getRepositories();
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -30,7 +36,8 @@ public class GithubServiceImpl implements GithubService {
     @Override
     public GHRepository createProjectRepository(String token, String projectName) {
         try {
-            GitHub gitHub = new GitHubBuilder().withOAuthToken(token).build();
+            String decryptToken = kmsService.decrypt(token);
+            GitHub gitHub = new GitHubBuilder().withOAuthToken(decryptToken).build();
             Map<String, GHRepository> repositories = gitHub.getMyself().getRepositories();
 
             String repositoryNamePrefix = "codemong-" + normalizeRepositoryName(projectName);
