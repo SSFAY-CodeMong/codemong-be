@@ -18,5 +18,7 @@ public interface GithubService {
 
     Map<String, GHRepository> getRepositories(String token);
     GHRepository createProjectRepository(String token, String projectName);
+    void deleteProjectRepository(String token, String repositoryName);
+
 
 }

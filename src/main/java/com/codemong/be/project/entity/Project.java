@@ -16,7 +16,6 @@ public class Project {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(columnDefinition = "INT UNSIGNED")
     private Long id;
 
     @Column(nullable = false, length = 50)

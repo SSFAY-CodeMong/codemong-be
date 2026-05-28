@@ -61,6 +61,20 @@ public class GithubServiceImpl implements GithubService {
         }
     }
 
+    @Override
+    public void deleteProjectRepository(String token, String repositoryName) {
+        try {
+            String decryptToken = kmsService.decrypt(token);
+            GitHub gitHub = new GitHubBuilder().withOAuthToken(decryptToken).build();
+            String login = gitHub.getMyself().getLogin();
+            GHRepository repository = gitHub.getRepository(login + "/" + repositoryName);
+            repository.delete();
+        } catch (IOException e) {
+            log.error("Failed to delete GitHub project repository: {}", repositoryName, e);
+            throw new RuntimeException(e);
+        }
+    }
+
     private String normalizeRepositoryName(String projectName) {
         String normalized = projectName.toLowerCase()
                 .replaceAll("[^a-z0-9-]", "-")

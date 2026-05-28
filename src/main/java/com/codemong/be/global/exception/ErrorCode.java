@@ -25,7 +25,10 @@ public enum ErrorCode {
     OAUTH_LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "OAuth 로그인 처리에 실패하였습니다.", "40105"),
 
     //Project
-    PROJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "프로젝트를 찾을 수 없습니다.", "40401");
+    PROJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "프로젝트를 찾을 수 없습니다.", "40401"),
+
+    //Repository
+    REPOSITORY_NOT_FOUND(HttpStatus.NOT_FOUND, "레포지토리를 찾을 수 없습니다.", "40402");
 
     private final HttpStatus httpStatus;
     private final String message;

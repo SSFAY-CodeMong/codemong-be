@@ -6,6 +6,8 @@ import com.codemong.be.global.exception.ErrorCode;
 import com.codemong.be.global.jwt.JwtProvider;
 import com.codemong.be.project.entity.Project;
 import com.codemong.be.project.repository.ProjectRepository;
+import com.codemong.be.repository.entity.GithubRepository;
+import com.codemong.be.repository.repository.GithubRepositoryRepository;
 import com.codemong.be.user.entity.User;
 import com.codemong.be.user.repository.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,6 +20,7 @@ import org.kohsuke.github.GHRef;
 import org.kohsuke.github.GHRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -41,6 +44,7 @@ public class GithubController {
     private final JwtProvider jwtProvider;
     private final UserRepository userRepository;
     private final ProjectRepository projectRepository;
+    private final GithubRepositoryRepository githubRepositoryRepository;
 
     @GetMapping("/repositories")
     @Operation(summary = "사용자 레포지토리 조회")
@@ -85,10 +89,47 @@ public class GithubController {
                 .orElseThrow(() -> new CustomException(ErrorCode.PROJECT_NOT_FOUND));
 
         GHRepository repository = githubService.createProjectRepository(user.getGithubToken(), project.getName());
+        githubRepositoryRepository.save(new GithubRepository(
+                user,
+                project,
+                repository.getName(),
+                repository.getHtmlUrl().toString()
+        ));
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(toRepoInfo(repository));
+    }
+
+    /**
+     * 검토 결과, repositories id를 같이 받아야 특정할 수 있을 것 같음 !
+     * @param projectId
+     * @param authorizationHeader
+     * @return
+     */
+    @DeleteMapping("/repositories/{projectId}")
+    @Operation(summary = "프로젝트 최신 GitHub Repository 삭제")
+    public ResponseEntity<?> deleteLatestProjectRepository(
+            @PathVariable Long projectId,
+            @RequestHeader(value = "Authorization", required = false) String authorizationHeader
+    ) {
+        User user = getAuthenticatedUser(authorizationHeader);
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new CustomException(ErrorCode.PROJECT_NOT_FOUND));
+
+        GithubRepository latestRepository = githubRepositoryRepository
+                .findTopByUserAndProjectOrderByCreatedAtDescIdDesc(user, project)
+                .orElseThrow(() -> new CustomException(ErrorCode.REPOSITORY_NOT_FOUND));
+
+        githubService.deleteProjectRepository(user.getGithubToken(), latestRepository.getName());
+        githubRepositoryRepository.delete(latestRepository);
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("deletedRepositoryId", latestRepository.getId());
+        body.put("name", latestRepository.getName());
+        body.put("url", latestRepository.getHtmlUrl());
+
+        return ResponseEntity.ok(body);
     }
 
 
