@@ -1,20 +1,7 @@
 spring:
-  profiles:
-    active: local
   application:
     name: codemong-be
-  security:
-    oauth2:
-      client:
-        registration:
-          github:
-            scope:
-              - read:user
-              - user:email
-              - repo
-              - workflow
-              - delete_repo
 
-aws:
-  kms:
-    key-id: ${KMS_KEY_ID}
+server:
+  port: 8080
+

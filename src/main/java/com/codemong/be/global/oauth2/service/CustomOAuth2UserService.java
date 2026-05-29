@@ -46,6 +46,8 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
 
         if(user == null){
             String accessToken = userRequest.getAccessToken().getTokenValue();
+            // TODO: KMS 설정이 준비되면 다시 암호화해서 저장해야 합니다.
+
             String encryptToken;
             try {
                 encryptToken = kmsService.encrypt(accessToken);
@@ -54,6 +56,9 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                         new OAuth2Error(ErrorCode.OAUTH_LOGIN_FAILED.getErrorCode(), ErrorCode.OAUTH_LOGIN_FAILED.getMessage(), null)
                 );
             }
+
+
+
             Role userRole = roleRepository.findById(1L)
                     .orElseThrow(()-> new RuntimeException("해당 Role이 없습니다."));
 
@@ -64,7 +69,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                                 .email(email)
                                 .role(userRole)
                                 .htmlUrl(htmlUrl)
-                                .githubToken(encryptToken)
+                                .githubToken(encryptToken) // 평문 하드 코딩 부분. KMS 수정
                                 .build()
                         );
 
