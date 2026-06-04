@@ -28,7 +28,19 @@ public enum ErrorCode {
     PROJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "프로젝트를 찾을 수 없습니다.", "40401"),
 
     //Repository
-    REPOSITORY_NOT_FOUND(HttpStatus.NOT_FOUND, "레포지토리를 찾을 수 없습니다.", "40402");
+    REPOSITORY_NOT_FOUND(HttpStatus.NOT_FOUND, "레포지토리를 찾을 수 없습니다.", "40402"),
+    INVALID_REPOSITORY_REQUEST(HttpStatus.BAD_REQUEST, "레포지토리 요청 값이 올바르지 않습니다.", "40010"),
+    INVALID_REPOSITORY_NAME(HttpStatus.BAD_REQUEST, "프로젝트 이름으로 레포지토리명을 만들 수 없습니다.", "40011"),
+
+    //GitHub
+    GITHUB_REPOSITORY_FETCH_FAILED(HttpStatus.BAD_GATEWAY, "GitHub 레포지토리 조회에 실패하였습니다.", "50201"),
+    GITHUB_REPOSITORY_CREATE_FAILED(HttpStatus.BAD_GATEWAY, "GitHub 레포지토리 생성에 실패하였습니다.", "50202"),
+    GITHUB_REPOSITORY_DELETE_FAILED(HttpStatus.BAD_GATEWAY, "GitHub 레포지토리 삭제에 실패하였습니다.", "50203"),
+    GITHUB_BRANCH_CREATE_FAILED(HttpStatus.BAD_GATEWAY, "GitHub 브랜치 생성에 실패하였습니다.", "50204"),
+    GITHUB_BRANCH_BASE_NOT_FOUND(HttpStatus.BAD_GATEWAY, "브랜치를 생성할 기준 브랜치를 찾을 수 없습니다.", "50205"),
+    GITHUB_ANSWER_REPOSITORY_NOT_FOUND(HttpStatus.BAD_GATEWAY, "정답 레포지토리에 접근할 수 없습니다.", "50206"),
+    GITHUB_ANSWER_TOKEN_MISSING(HttpStatus.INTERNAL_SERVER_ERROR, "정답 레포지토리 토큰 설정이 필요합니다.", "50056"),
+    GITHUB_ANSWER_CODE_COPY_FAILED(HttpStatus.BAD_GATEWAY, "정답 코드 복사에 실패하였습니다.", "50207");
 
     private final HttpStatus httpStatus;
     private final String message;

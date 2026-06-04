@@ -23,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.kohsuke.github.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.io.IOException;
@@ -60,7 +61,8 @@ public class GithubServiceImpl implements GithubService {
             GitHub gitHub = new GitHubBuilder().withOAuthToken(decryptToken).build();
             return gitHub.getMyself().getRepositories();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            log.error("Failed to fetch GitHub repositories", e);
+            throw new CustomException(ErrorCode.GITHUB_REPOSITORY_FETCH_FAILED);
         }
     }
 
@@ -100,13 +102,16 @@ public class GithubServiceImpl implements GithubService {
             initializeRepositoryStep(user, project, savedRepository, createdRepository, request);
 
             return createdRepository;
+        } catch (CustomException e) {
+            throw e;
         } catch (IOException e) {
             log.error("Failed to create GitHub project repository", e);
-            throw new RuntimeException(e);
+            throw new CustomException(ErrorCode.GITHUB_REPOSITORY_CREATE_FAILED);
         }
     }
 
     @Override
+    @Transactional
     public RepositoryDeleteResponse deleteRepository(User user, Long repositoryId) {
         GithubRepository repository = githubRepositoryRepository.findById(repositoryId)
                 .orElseThrow(() -> new CustomException(ErrorCode.REPOSITORY_NOT_FOUND));
@@ -126,12 +131,19 @@ public class GithubServiceImpl implements GithubService {
                     repository.getName(),
                     repository.getHtmlUrl()
             );
+            branchRepository.deleteByRepository(repository);
+            processRepository.deleteByRepository(repository);
             githubRepositoryRepository.delete(repository);
 
             return response;
+        } catch (CustomException e) {
+            throw e;
+        } catch (GHFileNotFoundException e) {
+            log.error("GitHub repository not found: {}", repository.getName(), e);
+            throw new CustomException(ErrorCode.REPOSITORY_NOT_FOUND);
         } catch (IOException e) {
             log.error("Failed to delete GitHub project repository: {}", repository.getName(), e);
-            throw new RuntimeException(e);
+            throw new CustomException(ErrorCode.GITHUB_REPOSITORY_DELETE_FAILED);
         }
     }
 
@@ -142,7 +154,7 @@ public class GithubServiceImpl implements GithubService {
                 .replaceAll("^-|-$", "");
 
         if (normalized.isBlank()) {
-            throw new IllegalArgumentException("프로젝트 이름으로 레포지토리명을 만들 수 없습니다.");
+            throw new CustomException(ErrorCode.INVALID_REPOSITORY_NAME);
         }
 
         return normalized;
@@ -190,10 +202,18 @@ public class GithubServiceImpl implements GithubService {
     }
 
     private GHRef createBranch(GHRepository repository, String branchName) throws IOException {
-        String baseBranchName = repository.getDefaultBranch();
-        GHRef baseRef = repository.getRef("heads/" + baseBranchName);
-        String baseSha = baseRef.getObject().getSha();
-        return repository.createRef("refs/heads/" + branchName, baseSha);
+        try {
+            String baseBranchName = repository.getDefaultBranch();
+            GHRef baseRef = repository.getRef("heads/" + baseBranchName);
+            String baseSha = baseRef.getObject().getSha();
+            return repository.createRef("refs/heads/" + branchName, baseSha);
+        } catch (GHFileNotFoundException e) {
+            log.error("Base branch ref not found. repository={}, targetBranch={}", repository.getFullName(), branchName, e);
+            throw new CustomException(ErrorCode.GITHUB_BRANCH_BASE_NOT_FOUND);
+        } catch (IOException e) {
+            log.error("Failed to create branch. repository={}, branch={}", repository.getFullName(), branchName, e);
+            throw new CustomException(ErrorCode.GITHUB_BRANCH_CREATE_FAILED);
+        }
     }
 
     private void copyAnswerRepositoryContents(
@@ -213,7 +233,22 @@ public class GithubServiceImpl implements GithubService {
                 targetRepository.getFullName(),
                 targetBranchName
         );
-        copyDirectory(answerRepository, targetRepository, type.name(), answerStep, targetBranchName);
+        try {
+            copyDirectory(answerRepository, targetRepository, type.name(), answerStep, targetBranchName);
+        } catch (CustomException e) {
+            throw e;
+        } catch (IOException e) {
+            log.error(
+                    "Failed to copy answer contents. sourceRepository={}, sourceBranch={}, sourcePath={}, targetRepository={}, targetBranch={}",
+                    answerRepositoryName,
+                    answerStep,
+                    type.name(),
+                    targetRepository.getFullName(),
+                    targetBranchName,
+                    e
+            );
+            throw new CustomException(ErrorCode.GITHUB_ANSWER_CODE_COPY_FAILED);
+        }
     }
 
     private void copyDirectory(
@@ -261,11 +296,8 @@ public class GithubServiceImpl implements GithubService {
         try {
             return answerGitHub.getRepository(answerRepositoryName);
         } catch (GHFileNotFoundException e) {
-            throw new IllegalStateException(
-                    "정답 레포지토리에 접근할 수 없습니다. GITHUB_ANSWER_REPOSITORY=" + answerRepositoryName
-                            + ", GITHUB_ANSWER_TOKEN 권한을 확인하세요.",
-                    e
-            );
+            log.error("Answer repository not found or inaccessible. repository={}", answerRepositoryName, e);
+            throw new CustomException(ErrorCode.GITHUB_ANSWER_REPOSITORY_NOT_FOUND);
         }
     }
 
@@ -284,17 +316,17 @@ public class GithubServiceImpl implements GithubService {
 
     private void validateRepositoryInitRequest(RepositoryInitRequest request) {
         if (request == null || request.getStartStep() == null) {
-            throw new IllegalArgumentException("startStep은 필수입니다.");
+            throw new CustomException(ErrorCode.INVALID_REPOSITORY_REQUEST);
         }
 
         if (request.getStartStep() < 1 || request.getStartStep() > 5) {
-            throw new IllegalArgumentException("startStep은 1부터 5까지 가능합니다.");
+            throw new CustomException(ErrorCode.INVALID_REPOSITORY_REQUEST);
         }
     }
 
     private void validateAnswerRepositoryToken() {
         if (!StringUtils.hasText(answerToken)) {
-            throw new IllegalStateException("GITHUB_ANSWER_TOKEN 설정이 필요합니다.");
+            throw new CustomException(ErrorCode.GITHUB_ANSWER_TOKEN_MISSING);
         }
     }
 
@@ -313,7 +345,7 @@ public class GithubServiceImpl implements GithubService {
             return "master";
         }
 
-        throw new IllegalStateException("브랜치를 생성할 기준 브랜치가 없습니다.");
+        throw new CustomException(ErrorCode.GITHUB_BRANCH_BASE_NOT_FOUND);
     }
 
 ////////////////// TEST METHODS ///////////////////
@@ -330,7 +362,8 @@ public class GithubServiceImpl implements GithubService {
                     .build();
             return github.getMyself();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            log.error("Failed to connect GitHub", e);
+            throw new CustomException(ErrorCode.GITHUB_REPOSITORY_FETCH_FAILED);
         }
     }
 
@@ -340,7 +373,8 @@ public class GithubServiceImpl implements GithubService {
             GitHub gitHub = new GitHubBuilder().withOAuthToken(token).build();
             return gitHub.getMyself().getRepositories();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            log.error("Failed to fetch GitHub repositories", e);
+            throw new CustomException(ErrorCode.GITHUB_REPOSITORY_FETCH_FAILED);
         }
     }
 
@@ -367,7 +401,7 @@ public class GithubServiceImpl implements GithubService {
                     .create();
         } catch (IOException e) {
             log.error("Failed to create GitHub repository", e);
-            throw new RuntimeException(e);
+            throw new CustomException(ErrorCode.GITHUB_REPOSITORY_CREATE_FAILED);
         }
     }
 
@@ -384,7 +418,7 @@ public class GithubServiceImpl implements GithubService {
 
             Map<String, GHBranch> branches = repo.getBranches();
             if (branches.containsKey(branchName)) {
-                throw new IllegalStateException("이미 존재하는 브랜치입니다: " + branchName);
+                throw new CustomException(ErrorCode.GITHUB_BRANCH_CREATE_FAILED);
             }
 
 
@@ -398,7 +432,7 @@ public class GithubServiceImpl implements GithubService {
 
         } catch (IOException e) {
             log.error("Failed to create GitHub branch", e);
-            throw new RuntimeException(e);
+            throw new CustomException(ErrorCode.GITHUB_BRANCH_CREATE_FAILED);
         }
     }
 
