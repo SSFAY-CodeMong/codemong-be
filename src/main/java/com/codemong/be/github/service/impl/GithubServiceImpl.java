@@ -18,6 +18,7 @@ import com.codemong.be.repository.repository.GithubRepositoryRepository;
 import com.codemong.be.setup.entity.Setup;
 import com.codemong.be.setup.repository.SetupRepository;
 import com.codemong.be.user.entity.User;
+import com.codemong.be.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.kohsuke.github.*;
@@ -26,11 +27,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 @Service
 @Slf4j
@@ -46,12 +53,15 @@ public class GithubServiceImpl implements GithubService {
     @Value("${github.answer.repository}")
     private String answerRepositoryName;
 
+    private static final long MAX_CODE_FILE_BYTES = 1024 * 1024;
+
     private final KmsService kmsService;
     private final ProjectRepository projectRepository;
     private final GithubRepositoryRepository githubRepositoryRepository;
     private final SetupRepository setupRepository;
     private final ProcessRepository processRepository;
     private final BranchRepository branchRepository;
+    private final UserRepository userRepository;
 
 
     @Override
@@ -144,6 +154,26 @@ public class GithubServiceImpl implements GithubService {
         } catch (IOException e) {
             log.error("Failed to delete GitHub project repository: {}", repository.getName(), e);
             throw new CustomException(ErrorCode.GITHUB_REPOSITORY_DELETE_FAILED);
+        }
+    }
+
+    @Override
+    public Map<String, String> getBranchContents(Long repositoryId, Long step, Long userId)
+    {
+        User user = userRepository.findById(userId)
+                .orElseThrow(()-> new RuntimeException("유저를 찾을 수 없습니다."));
+        GithubRepository githubRepository = githubRepositoryRepository.findById(repositoryId)
+                .orElseThrow(()-> new RuntimeException("레포지토리를 찾을 수 없습니다."));
+        String repoName = githubRepository.getName();
+        String branchName = (step>=10) ? "step-"+step : "step-0"+step;
+        try {
+            String decryptToken = kmsService.decrypt(user.getGithubToken());
+            GitHub github = GitHub.connectUsingOAuth(decryptToken);
+            GHRepository repo = github.getMyself().getRepository(repoName);
+
+            return repo.readZip(this::collectZipContents, branchName);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -347,6 +377,74 @@ public class GithubServiceImpl implements GithubService {
 
         throw new CustomException(ErrorCode.GITHUB_BRANCH_BASE_NOT_FOUND);
     }
+
+    private Map<String, String> collectZipContents(InputStream inputStream) throws IOException {
+        Map<String, String> result = new LinkedHashMap<>();
+
+        try (ZipInputStream zipInputStream = new ZipInputStream(inputStream, StandardCharsets.UTF_8)) {
+            ZipEntry entry;
+
+            while ((entry = zipInputStream.getNextEntry()) != null) {
+                if (entry.isDirectory()) {
+                    continue;
+                }
+
+                String filePath = removeArchiveRoot(entry.getName());
+                if (!isCodeFile(filePath) || entry.getSize() > MAX_CODE_FILE_BYTES) {
+                    continue;
+                }
+
+                String fileText = readZipEntryText(zipInputStream);
+                if (fileText == null) {
+                    continue;
+                }
+                result.put(filePath, fileText);
+            }
+        }
+
+        return result;
+    }
+
+    private String readZipEntryText(ZipInputStream zipInputStream) throws IOException {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        long totalBytes = 0;
+        int readBytes;
+
+        while ((readBytes = zipInputStream.read(buffer)) != -1) {
+            totalBytes += readBytes;
+            if (totalBytes > MAX_CODE_FILE_BYTES) {
+                while (zipInputStream.read(buffer) != -1) {
+                    // Drain this zip entry so the next entry can be read normally.
+                }
+                return null;
+            }
+            outputStream.write(buffer, 0, readBytes);
+        }
+
+        return outputStream.toString(StandardCharsets.UTF_8);
+    }
+
+    private String removeArchiveRoot(String entryName) {
+        int firstSlashIndex = entryName.indexOf('/');
+        if (firstSlashIndex == -1 || firstSlashIndex == entryName.length() - 1) {
+            return entryName;
+        }
+        return entryName.substring(firstSlashIndex + 1);
+    }
+
+
+    private boolean isCodeFile(String path) {
+        return path.endsWith(".java")
+                || path.endsWith(".json")
+                || path.endsWith(".xml")
+                || path.endsWith(".yml")
+                || path.endsWith(".yaml")
+                || path.endsWith(".properties")
+                || path.endsWith(".gradle");
+    }
+
+
 
 ////////////////// TEST METHODS ///////////////////
     @Override

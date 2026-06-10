@@ -23,4 +23,5 @@ public interface GithubService {
     GHRepository createProjectRepository(User user, Long projectId, RepositoryInitRequest request);
     RepositoryDeleteResponse deleteRepository(User user, Long repositoryId);
 
+    Map<String, String> getBranchContents(Long repositoryId, Long step, Long userId);
 }
