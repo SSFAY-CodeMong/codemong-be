@@ -108,9 +108,7 @@ public class JwtProvider {
         Collection<? extends GrantedAuthority> authorities =
                 Collections.singletonList(new SimpleGrantedAuthority(role));
 
-        User principal = new User(String.valueOf(userId), "", authorities);
-
-        return new UsernamePasswordAuthenticationToken(principal, accessToken, authorities);
+        return new UsernamePasswordAuthenticationToken(userId, accessToken, authorities);
     }
 
 }
