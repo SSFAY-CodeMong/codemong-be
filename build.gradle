@@ -59,13 +59,14 @@ dependencies {
     implementation 'software.amazon.awssdk:kms:2.25.27'
 
     //For RAG
-
     implementation platform('org.springframework.ai:spring-ai-bom:1.0.0')
     implementation 'org.springframework.ai:spring-ai-starter-model-openai'
     implementation 'org.springframework.ai:spring-ai-starter-vector-store-pgvector'
     runtimeOnly 'org.postgresql:postgresql'
 
     runtimeOnly "io.netty:netty-resolver-dns-native-macos:4.2.12.Final:osx-aarch_64"
+
+    implementation "com.github.javaparser:javaparser-core:3.26.4"
 
 }
 
