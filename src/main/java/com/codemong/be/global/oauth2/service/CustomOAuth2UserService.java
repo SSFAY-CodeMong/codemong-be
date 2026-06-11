@@ -45,7 +45,6 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                 .orElse(null);
 
         String accessToken = userRequest.getAccessToken().getTokenValue();
-        // TODO: KMS 설정이 준비되면 다시 암호화해서 저장해야 합니다.
 
         String encryptToken;
 
@@ -68,7 +67,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                                 .email(email)
                                 .role(userRole)
                                 .htmlUrl(htmlUrl)
-                                .githubToken(encryptToken) // 평문 하드 코딩 부분. KMS 수정
+                                .githubToken(encryptToken)
                                 .build()
                         );
 
