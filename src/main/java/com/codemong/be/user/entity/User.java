@@ -43,4 +43,8 @@ public class User {
 
     @CreationTimestamp
     private LocalDateTime createdAt;
+
+    public void updateGithubToken(String encryptToken) {
+        this.githubToken = encryptToken;
+    }
 }
