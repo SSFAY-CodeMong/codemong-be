@@ -94,7 +94,7 @@ public class GithubServiceImpl implements GithubService {
 
             GHRepository createdRepository = gitHub.createRepository(repositoryName)
                     .description("Codemong project repository")
-                    .private_(true)
+                    .private_(false)
                     .autoInit(true)
                     .create();
             GithubRepository savedRepository = githubRepositoryRepository.save(new GithubRepository(

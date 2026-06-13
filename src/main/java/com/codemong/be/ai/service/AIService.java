@@ -9,11 +9,13 @@ import com.codemong.be.feedback.service.FeedbackService;
 import com.codemong.be.github.service.GithubService;
 import com.codemong.be.rag.service.RAGService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AIService {
@@ -29,6 +31,7 @@ public class AIService {
         Map<String, String> contents = githubService.getBranchContents(repositoryId, step, userId);
 
         // TODO: 2. github actions 결과 받아오기
+        log.info("============================== actions call =============================");
         CodeCheckResult codeCheckResult = codeCheckService.runGithubActionsCheck(repositoryId, step, userId);
         boolean testPassed = codeCheckResult.passed();
 
@@ -42,7 +45,7 @@ public class AIService {
 
         // 6. LLM 응답 반환하기
 
-        return new CodeReviewResponse("CodeReviewResponse");
+        return new CodeReviewResponse("CodeReviewResponse : " + testPassed);
     }
 
     public UserQuestionResponse userQuestion(UserQuestionRequest userQuestionRequest, Long repositoryId, Long userId) {

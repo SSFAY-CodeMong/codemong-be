@@ -40,7 +40,12 @@ public enum ErrorCode {
     GITHUB_BRANCH_BASE_NOT_FOUND(HttpStatus.BAD_GATEWAY, "브랜치를 생성할 기준 브랜치를 찾을 수 없습니다.", "50205"),
     GITHUB_ANSWER_REPOSITORY_NOT_FOUND(HttpStatus.BAD_GATEWAY, "정답 레포지토리에 접근할 수 없습니다.", "50206"),
     GITHUB_ANSWER_TOKEN_MISSING(HttpStatus.INTERNAL_SERVER_ERROR, "정답 레포지토리 토큰 설정이 필요합니다.", "50056"),
-    GITHUB_ANSWER_CODE_COPY_FAILED(HttpStatus.BAD_GATEWAY, "정답 코드 복사에 실패하였습니다.", "50207");
+    GITHUB_ANSWER_CODE_COPY_FAILED(HttpStatus.BAD_GATEWAY, "정답 코드 복사에 실패하였습니다.", "50207"),
+    GITHUB_ACTIONS_WORKFLOW_NOT_FOUND(HttpStatus.BAD_GATEWAY, "GitHub Actions workflow를 찾을 수 없습니다.", "50208"),
+    GITHUB_ACTIONS_DISPATCH_FAILED(HttpStatus.BAD_GATEWAY, "GitHub Actions 실행 요청에 실패하였습니다.", "50209"),
+    GITHUB_ACTIONS_RESULT_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "GitHub Actions 결과 대기 시간이 초과되었습니다.", "50401"),
+    GITHUB_ACTIONS_RESULT_FETCH_FAILED(HttpStatus.BAD_GATEWAY, "GitHub Actions 결과 조회에 실패하였습니다.", "50210"),
+    GITHUB_ANSWER_REPOSITORY_WRITE_DENIED(HttpStatus.FORBIDDEN, "정답 레포지토리 쓰기 권한이 없습니다.", "40301");
 
     private final HttpStatus httpStatus;
     private final String message;
