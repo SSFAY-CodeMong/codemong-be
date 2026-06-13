@@ -10,17 +10,13 @@ import com.codemong.be.user.entity.User;
 import com.codemong.be.user.repository.UserRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import io.swagger.v3.oas.annotations.tags.Tags;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.kohsuke.github.GHMyself;
-import org.kohsuke.github.GHRef;
 import org.kohsuke.github.GHRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -93,115 +89,6 @@ public class GithubController {
         RepositoryDeleteResponse response = githubService.deleteRepository(user, repositoryId);
 
         return ResponseEntity.ok(response);
-    }
-
-
-
-
-
-
-
-    /**
-     * [ DEV method ]
-     * required delete
-     *
-     * @return connection status
-     */
-    @GetMapping("/connect-test")
-    @Operation(summary = "Server 연결 테스트")
-    public ResponseEntity<?> connectTest() {
-        String result = githubService.connectTest("connection test");
-
-        return ResponseEntity
-                .status(HttpStatus.OK)
-                .body(result + " : CONNECTED");
-    }
-
-    /**
-     * [ DEV method ]
-     * required delete
-     *
-     * @return connection status
-     */
-    @GetMapping("/git-connect-test")
-    @Operation(summary = "Github 연결 테스트",
-        description = """
-                다음의 기능을 테스트합니다.
-                1. Github <-> API Server 연결 테스트
-                
-                Response
-                1. user information
-                2. repo information
-    """)
-    public ResponseEntity<?> gitConnectTest() throws IOException {
-        GHMyself me = githubService.gitConnectTest();
-        Map<String, GHRepository> repos = githubService.gitRepositoryTest();
-
-        Map<String, Object> body = new LinkedHashMap<>();
-
-        body.put("login", me.getLogin());
-        body.put("name", me.getName());
-        body.put("email", me.getEmail());
-        body.put("url", me.getHtmlUrl());
-
-        List<Map<String, Object>> repoInfos = repos.values().stream()
-                .map(this::toRepoInfo)
-                .toList();
-        body.put("repos", repoInfos);
-
-        return ResponseEntity
-                .status(HttpStatus.OK)
-                .body(body);
-    }
-
-    /**
-     * [ DEV method ]
-     * required delete
-     *
-     * @return connection status
-     */
-    @PostMapping("/git-generate-test")
-    @Operation(summary = "Github Repository 생성 테스트",
-            description = """
-                다음의 기능을 테스트합니다.
-                1. Github <-> API Server 생성 테스트
-                Response
-                1. user information
-                2. repo information
-    """)
-    public ResponseEntity<?> gitGenerateTest() throws IOException {
-        GHRepository repo = githubService.gitGenerateTest();
-        return ResponseEntity
-                .status(HttpStatus.CREATED)
-                .body(repo.getName() + "가 생성되었습니다.");
-    }
-
-    /**
-     * [ DEV method ]
-     * required delete
-     *
-     * @return connection status
-     */
-    @PostMapping("/git-branch-generate-test")
-    @Operation(summary = "Github Branch 생성 테스트",
-            description = """
-                다음의 기능을 테스트합니다.
-                1. Github <-> API Server 생성 테스트
-                Response
-                1. user information
-                2. repo information
-    """)
-    public ResponseEntity<?> gitGenerateBranchTest() throws IOException {
-        try {
-            GHRef branch = githubService.gitGenerateBranchTest("codemong-tester/test-repo0");
-            return ResponseEntity
-                    .status(HttpStatus.CREATED)
-                    .body(branch.getRef() + "가 생성되었습니다.");
-        } catch (IllegalStateException e) {
-            return ResponseEntity
-                    .status(HttpStatus.CONFLICT)
-                    .body(e.getMessage());
-        }
     }
 
     private Map<String, Object> toRepoInfo(GHRepository repo) {

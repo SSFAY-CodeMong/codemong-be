@@ -31,8 +31,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,9 +41,6 @@ import java.util.zip.ZipInputStream;
 @Slf4j
 @RequiredArgsConstructor
 public class GithubServiceImpl implements GithubService {
-
-    @Value("${github.token}")
-    private String token;
 
     @Value("${github.answer.token}")
     private String answerToken;
@@ -340,8 +335,8 @@ public class GithubServiceImpl implements GithubService {
     }
 
     private String buildBranchName(String projectName, String step) {
-        String date = LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd"));
-        return normalizeRepositoryName(projectName) + "-" + step + "-" + date;
+        // 0612 수정 ) 합의 내용에 의거, 브랜치명에 날짜 제거
+        return normalizeRepositoryName(projectName) + "-" + step;
     }
 
     private void validateRepositoryInitRequest(RepositoryInitRequest request) {
@@ -443,95 +438,4 @@ public class GithubServiceImpl implements GithubService {
                 || path.endsWith(".properties")
                 || path.endsWith(".gradle");
     }
-
-
-
-////////////////// TEST METHODS ///////////////////
-    @Override
-    public String connectTest(String param) {
-        return param;
-    }
-
-    @Override
-    public GHMyself gitConnectTest() {
-        try {
-            GitHub github = new GitHubBuilder()
-                    .withOAuthToken(token)
-                    .build();
-            return github.getMyself();
-        } catch (IOException e) {
-            log.error("Failed to connect GitHub", e);
-            throw new CustomException(ErrorCode.GITHUB_REPOSITORY_FETCH_FAILED);
-        }
-    }
-
-    @Override
-    public Map<String, GHRepository> gitRepositoryTest() {
-        try {
-            GitHub gitHub = new GitHubBuilder().withOAuthToken(token).build();
-            return gitHub.getMyself().getRepositories();
-        } catch (IOException e) {
-            log.error("Failed to fetch GitHub repositories", e);
-            throw new CustomException(ErrorCode.GITHUB_REPOSITORY_FETCH_FAILED);
-        }
-    }
-
-    @Override
-    public GHRepository gitGenerateTest() {
-        try {
-            GitHub client = new GitHubBuilder().withOAuthToken(token).build();
-            Map<String, GHRepository> repositories = client.getMyself().getRepositories();
-
-            int repoNum = 0;
-            String repoName = "test-repo" + repoNum;
-            while (repositories.containsKey(repoName)) {
-                repoNum++;
-                repoName = "test-repo" + repoNum;
-            }
-
-            log.info("Creating GitHub repository: {}", repoName);
-
-            return client
-                    .createRepository(repoName)
-                    .description("API Created")
-                    .private_(true)
-                    .autoInit(true)
-                    .create();
-        } catch (IOException e) {
-            log.error("Failed to create GitHub repository", e);
-            throw new CustomException(ErrorCode.GITHUB_REPOSITORY_CREATE_FAILED);
-        }
-    }
-
-    @Override
-    public GHRef gitGenerateBranchTest(String repoName) {
-        try {
-            GitHub client = new GitHubBuilder().withOAuthToken(token).build();
-
-            // 1. repo 유효성 검사
-            GHRepository repo = client.getRepository(repoName);
-            // 2. branch명 검사
-            String branchName = "board-step01-260522";
-            // 브랜치는 board-step01-260522 형식이므로 process 테이블조회가 필요함
-
-            Map<String, GHBranch> branches = repo.getBranches();
-            if (branches.containsKey(branchName)) {
-                throw new CustomException(ErrorCode.GITHUB_BRANCH_CREATE_FAILED);
-            }
-
-
-            // 3. 브랜치 생성
-
-            String baseBranchName = findBaseBranchName(repo, branches);
-            GHRef ref = repo.getRef("heads/" + baseBranchName);
-            String sha = ref.getObject().getSha();
-
-            return repo.createRef("refs/heads/" + branchName, sha);
-
-        } catch (IOException e) {
-            log.error("Failed to create GitHub branch", e);
-            throw new CustomException(ErrorCode.GITHUB_BRANCH_CREATE_FAILED);
-        }
-    }
-
 }
