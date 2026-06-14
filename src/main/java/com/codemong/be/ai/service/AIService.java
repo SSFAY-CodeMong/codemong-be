@@ -6,6 +6,8 @@ import com.codemong.be.ai.dto.UserQuestionResponse;
 import com.codemong.be.feedback.service.FeedbackService;
 import com.codemong.be.github.service.GithubService;
 import com.codemong.be.rag.service.RAGService;
+import com.codemong.be.repository.entity.GithubRepository;
+import com.codemong.be.repository.repository.GithubRepositoryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
@@ -16,12 +18,18 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AIService {
     private final GithubService githubService;
+    private final GithubRepositoryRepository githubRepositoryRepository;
     private final RAGService ragService;
     private final FeedbackService feedbackService;
     private final ChatClient chatClient;
 
 
     public CodeReviewResponse codeReview(Long repositoryId, Long step, Long userId) {
+        // 0. 요청 사용자가 레포지토리의 주인인지 확인
+        if(!isOwner(userId, repositoryId)){
+            throw new RuntimeException("레포지토리 소유자만이 검사하기를 요청할 수 있습니다.");
+        }
+
         // 1. 사용자의 코드 & *프로젝트 스텝별 설명 가져오기
         Map<String, String> contents = githubService.getBranchContents(repositoryId, step, userId);
 
@@ -41,6 +49,11 @@ public class AIService {
     }
 
     public UserQuestionResponse userQuestion(UserQuestionRequest userQuestionRequest, Long repositoryId, Long userId) {
+        // 0. 요청 사용자가 레포지토리의 주인인지 확인
+        if(!isOwner(userId, repositoryId)){
+            throw new RuntimeException("레포지토리 소유자만이 검사하기를 요청할 수 있습니다.");
+        }
+
         // 1. 사용자의 질의와 관련된 코드들, 사용자의 이전 대화기록 수집
         String question = userQuestionRequest.question();
         String context = ragService.searchSimilarCode(question, userId, repositoryId);
@@ -81,16 +94,24 @@ public class AIService {
               [질문]
               %s
               """.formatted(context, question);
-        String answer = chatClient.prompt()
-                .system(promptEngineering) //역할/답변 형식/제약 조건은 system, 실제 질문은 user
-                .user(question) // rag 결과는 여기에 프롬프트로 추가해서 넣기
-                .call()
-                .content();
+//        String answer = chatClient.prompt()
+//                .system(promptEngineering) //역할/답변 형식/제약 조건은 system, 실제 질문은 user
+//                .user(question) // rag 결과는 여기에 프롬프트로 추가해서 넣기
+//                .call()
+//                .content();
+        System.out.println("모델: gpt-5-mini\n\n[System Prompt]\n" + promptEngineering + "\n\n[User Prompt]\n" + userPrompt
+         + "\n\n[실제 사용자의 질문]\n" + question);
 
         // 3. 피드백 내용 저장하기(요약)
 
         // 4. LLM 응답 반환하기
 
         return new UserQuestionResponse("userQuestionResponse");
+    }
+
+    private boolean isOwner(Long userId, Long repositoryId){
+        GithubRepository repo = githubRepositoryRepository.findById(repositoryId)
+                .orElseThrow(()-> new RuntimeException("레포지토리를 찾을 수 없습니다."));
+        return userId.equals(repo.getUser().getId());
     }
 }
