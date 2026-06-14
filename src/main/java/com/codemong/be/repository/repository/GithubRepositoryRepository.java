@@ -10,5 +10,8 @@ import java.util.Optional;
 
 @Repository
 public interface GithubRepositoryRepository extends JpaRepository<GithubRepository, Long> {
+
+    Optional<GithubRepository> findGithubRepositoryById(Long id);
+    
     Optional<GithubRepository> findTopByUserAndProjectOrderByCreatedAtDescIdDesc(User user, Project project);
 }

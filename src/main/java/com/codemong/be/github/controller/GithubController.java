@@ -1,5 +1,7 @@
 package com.codemong.be.github.controller;
 
+import com.codemong.be.branch.entity.Branch;
+import com.codemong.be.github.dto.BranchNextResponse;
 import com.codemong.be.github.dto.RepositoryDeleteResponse;
 import com.codemong.be.github.dto.RepositoryInitRequest;
 import com.codemong.be.github.service.GithubService;
@@ -15,6 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.kohsuke.github.GHRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -77,6 +80,16 @@ public class GithubController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(toRepoInfo(repository));
+    }
+
+    @PostMapping("/repositories/{repositoryId}/next")
+    @Operation(summary="사용자가 다음 단계로 넘어가기 시도")
+    public ResponseEntity<?> createNextRepository(
+            @PathVariable("repositoryId") Long repositoryId,
+            @AuthenticationPrincipal Long userId
+    ) {
+        Branch branch = githubService.createNextStepBranch(repositoryId, userId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(BranchNextResponse.from(branch));
     }
 
     @DeleteMapping("/repositories/{repositoryId}")

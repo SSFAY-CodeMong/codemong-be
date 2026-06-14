@@ -57,4 +57,8 @@ public class Process {
         this.startStep = startStep;
         this.currentStep = currentStep;
     }
+
+    public void updateCurrentStep(String currentStep) {
+        this.currentStep = currentStep;
+    }
 }

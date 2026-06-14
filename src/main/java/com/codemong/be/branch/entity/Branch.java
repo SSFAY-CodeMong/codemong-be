@@ -45,6 +45,9 @@ public class Branch {
     @Column(nullable = false, length = 300)
     private String sha;
 
+    @Column(name = "is_success", nullable = false, columnDefinition = "BOOLEAN DEFAULT FALSE")
+    private boolean isSuccess = false;
+
     @CreationTimestamp
     @Column(
             name = "created_at",
@@ -60,5 +63,9 @@ public class Branch {
         this.name = name;
         this.step = step;
         this.sha = sha;
+    }
+
+    public void markSuccess() {
+        this.isSuccess = true;
     }
 }

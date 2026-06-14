@@ -31,6 +31,9 @@ public enum ErrorCode {
     REPOSITORY_NOT_FOUND(HttpStatus.NOT_FOUND, "레포지토리를 찾을 수 없습니다.", "40402"),
     INVALID_REPOSITORY_REQUEST(HttpStatus.BAD_REQUEST, "레포지토리 요청 값이 올바르지 않습니다.", "40010"),
     INVALID_REPOSITORY_NAME(HttpStatus.BAD_REQUEST, "프로젝트 이름으로 레포지토리명을 만들 수 없습니다.", "40011"),
+    REPOSITORY_ACCESS_DENIED(HttpStatus.FORBIDDEN, "레포지토리에 접근할 권한이 없습니다.", "40302"),
+    BRANCH_NOT_SUCCESS(HttpStatus.CONFLICT, "현재 브랜치 검사를 통과해야 다음 단계로 넘어갈 수 있습니다.", "40901"),
+    NEXT_STEP_NOT_FOUND(HttpStatus.BAD_REQUEST, "다음 단계가 존재하지 않습니다.", "40012"),
 
     //GitHub
     GITHUB_REPOSITORY_FETCH_FAILED(HttpStatus.BAD_GATEWAY, "GitHub 레포지토리 조회에 실패하였습니다.", "50201"),

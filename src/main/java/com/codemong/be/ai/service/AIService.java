@@ -3,6 +3,7 @@ package com.codemong.be.ai.service;
 import com.codemong.be.ai.dto.CodeReviewResponse;
 import com.codemong.be.ai.dto.UserQuestionRequest;
 import com.codemong.be.ai.dto.UserQuestionResponse;
+import com.codemong.be.branch.repository.BranchRepository;
 import com.codemong.be.codecheck.dto.CodeCheckResult;
 import com.codemong.be.codecheck.service.CodeCheckService;
 import com.codemong.be.feedback.service.FeedbackService;
@@ -21,6 +22,7 @@ import java.util.Map;
 public class AIService {
     private final GithubService githubService;
     private final CodeCheckService codeCheckService;
+    private final BranchRepository branchRepository;
     private final RAGService ragService;
     private final FeedbackService feedbackService;
     private final ChatClient chatClient;
@@ -34,6 +36,13 @@ public class AIService {
         log.info("============================== actions call =============================");
         CodeCheckResult codeCheckResult = codeCheckService.runGithubActionsCheck(repositoryId, step, userId);
         boolean testPassed = codeCheckResult.passed();
+        if (testPassed) { // 추후, 다음 스텝 넘어가기 수행 시 기준이되는 isSuccess 변경
+            branchRepository.findTopByRepository_IdOrderByCreatedAtDesc(repositoryId)
+                    .ifPresent(branch -> {
+                        branch.markSuccess();
+                        branchRepository.save(branch);
+                    });
+        }
 
         // 3. LLM에 코드 보내기 with 부가정보(테스트 결과, *프로젝트 스텝별 설명 등)
         // TODO: testPassed 값을 프롬프트 컨텍스트에 포함한다.

@@ -34,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -90,7 +91,7 @@ public class GithubServiceImpl implements GithubService {
                 repositoryName = repositoryNamePrefix + "-" + repoNum;
             }
 
-            log.info("Creating GitHub repository: {}", repositoryName);
+            log.info("GitHub repository 생성 : {}", repositoryName);
 
             GHRepository createdRepository = gitHub.createRepository(repositoryName)
                     .description("Codemong project repository")
@@ -160,7 +161,9 @@ public class GithubServiceImpl implements GithubService {
         GithubRepository githubRepository = githubRepositoryRepository.findById(repositoryId)
                 .orElseThrow(()-> new RuntimeException("레포지토리를 찾을 수 없습니다."));
         String repoName = githubRepository.getName();
-        String branchName = (step>=10) ? "step-"+step : "step-0"+step;
+        String branchName = branchRepository.findTopByRepository_IdOrderByCreatedAtDesc(repositoryId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GITHUB_BRANCH_BASE_NOT_FOUND))
+                .getName();
         try {
             String decryptToken = kmsService.decrypt(user.getGithubToken());
             GitHub github = GitHub.connectUsingOAuth(decryptToken);
@@ -169,6 +172,83 @@ public class GithubServiceImpl implements GithubService {
             return repo.readZip(this::collectZipContents, branchName);
         } catch (Exception e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public Boolean validateRepoOwner(Long repositoryId, Long userId) {
+        GithubRepository curRepo = githubRepositoryRepository.findGithubRepositoryById(repositoryId)
+                .orElseThrow(() -> new CustomException(ErrorCode.REPOSITORY_NOT_FOUND));
+
+        if (!curRepo.getUser().getId().equals(userId)) {
+            throw new CustomException(ErrorCode.REPOSITORY_ACCESS_DENIED);
+        }
+
+        return true;
+    }
+
+    @Override
+    public Boolean validateIsSuccess(Long repositoryId) {
+        Branch curBranch = branchRepository.findTopByRepository_IdOrderByCreatedAtDesc(repositoryId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GITHUB_BRANCH_BASE_NOT_FOUND));
+
+        return curBranch.isSuccess();
+
+    }
+
+    @Override
+    @Transactional
+    public Branch createNextStepBranch(Long repositoryId, Long userId) {
+        GithubRepository repository = githubRepositoryRepository.findById(repositoryId)
+                .orElseThrow(() -> new CustomException(ErrorCode.REPOSITORY_NOT_FOUND));
+
+        if (!repository.getUser().getId().equals(userId)) {
+            throw new CustomException(ErrorCode.REPOSITORY_ACCESS_DENIED);
+        }
+
+        Branch currentBranch = branchRepository.findTopByRepository_IdOrderByCreatedAtDesc(repositoryId)
+                .orElseThrow(() -> new CustomException(ErrorCode.GITHUB_BRANCH_BASE_NOT_FOUND));
+
+        if (!currentBranch.isSuccess()) {
+            throw new CustomException(ErrorCode.BRANCH_NOT_SUCCESS);
+        }
+
+        int nextStepNumber = Integer.parseInt(currentBranch.getStep().replace("step", "")) + 1;
+//        if (nextStepNumber > 5) {
+//            throw new CustomException(ErrorCode.NEXT_STEP_NOT_FOUND);
+//        }
+
+        String nextStep = formatStep((long) nextStepNumber);
+        String nextBranchName = buildBranchName(repository.getProject().getName(), nextStep);
+
+        try {
+            String decryptToken = kmsService.decrypt(repository.getUser().getGithubToken());
+            GitHub gitHub = new GitHubBuilder().withOAuthToken(decryptToken).build();
+            GHRepository remoteRepository = gitHub.getMyself().getRepository(repository.getName());
+            GHRef createdBranch = createBranch(remoteRepository, nextBranchName, currentBranch.getSha());
+
+            copyAnswerRepositoryContents(
+                    remoteRepository,
+                    nextBranchName,
+                    nextStep,
+                    repository.getProject().getType() == ProjectType.BE ? ProjectType.FE : ProjectType.BE
+            );
+
+            String finalBranchSha = remoteRepository.getRef("heads/" + nextBranchName).getObject().getSha();
+            processRepository.findTopByRepository_IdOrderByCreatedAtDesc(repositoryId)
+                    .ifPresent(process -> process.updateCurrentStep(nextStep));
+
+            return branchRepository.save(new Branch(
+                    repository.getUser(),
+                    repository,
+                    nextBranchName,
+                    nextStep,
+                    finalBranchSha == null ? createdBranch.getObject().getSha() : finalBranchSha
+            ));
+        } catch (CustomException e) {
+            throw e;
+        } catch (IOException e) {
+            throw new CustomException(ErrorCode.GITHUB_BRANCH_CREATE_FAILED);
         }
     }
 
@@ -197,17 +277,14 @@ public class GithubServiceImpl implements GithubService {
         String backendAnswerStep = formatStep(resolveBackendAnswerStep(request.getStartStep()));
         String branchName = buildBranchName(project.getName(), startStep);
 
-        log.info(
-                "Initializing repository. projectId={}, startStep={}, frontendAnswerStep={}, backendAnswerStep={}, targetBranch={}",
-                project.getId(),
-                startStep,
-                frontendAnswerStep,
-                backendAnswerStep,
-                branchName
-        );
 
+        // 브랜치 생성
         GHRef createdBranch = createBranch(createdRepository, branchName);
+
+        // 프론트 정답 코드 복사 ( e.g. step03 진입이라면, step03의 frontend code를 가져와야 함. )
         copyAnswerRepositoryContents(createdRepository, branchName, frontendAnswerStep, ProjectType.FE);
+
+        // 백엔드 정답 코드 복사
         copyAnswerRepositoryContents(createdRepository, branchName, backendAnswerStep, ProjectType.BE);
 
         String finalBranchSha = createdRepository.getRef("heads/" + branchName).getObject().getSha();
@@ -231,6 +308,18 @@ public class GithubServiceImpl implements GithubService {
             String baseBranchName = repository.getDefaultBranch();
             GHRef baseRef = repository.getRef("heads/" + baseBranchName);
             String baseSha = baseRef.getObject().getSha();
+            return createBranch(repository, branchName, baseSha);
+        } catch (GHFileNotFoundException e) {
+            log.error("Base branch ref not found. repository={}, targetBranch={}", repository.getFullName(), branchName, e);
+            throw new CustomException(ErrorCode.GITHUB_BRANCH_BASE_NOT_FOUND);
+        } catch (IOException e) {
+            log.error("Failed to create branch. repository={}, branch={}", repository.getFullName(), branchName, e);
+            throw new CustomException(ErrorCode.GITHUB_BRANCH_CREATE_FAILED);
+        }
+    }
+
+    private GHRef createBranch(GHRepository repository, String branchName, String baseSha) throws IOException {
+        try {
             return repository.createRef("refs/heads/" + branchName, baseSha);
         } catch (GHFileNotFoundException e) {
             log.error("Base branch ref not found. repository={}, targetBranch={}", repository.getFullName(), branchName, e);
