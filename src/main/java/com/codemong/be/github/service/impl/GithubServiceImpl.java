@@ -61,9 +61,10 @@ public class GithubServiceImpl implements GithubService {
 
 
     @Override
-    public Map<String, GHRepository> getRepositories(String token) {
+    public Map<String, GHRepository> getRepositories(Long userId) {
+        User user = findUser(userId);
         try {
-            String decryptToken = kmsService.decrypt(token);
+            String decryptToken = kmsService.decrypt(user.getGithubToken());
             GitHub gitHub = new GitHubBuilder().withOAuthToken(decryptToken).build();
             return gitHub.getMyself().getRepositories();
         } catch (IOException e) {
@@ -73,7 +74,8 @@ public class GithubServiceImpl implements GithubService {
     }
 
     @Override
-    public GHRepository createProjectRepository(User user, Long projectId, RepositoryInitRequest request) {
+    public GHRepository createProjectRepository(Long userId, Long projectId, RepositoryInitRequest request) {
+        User user = findUser(userId);
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new CustomException(ErrorCode.PROJECT_NOT_FOUND));
         validateRepositoryInitRequest(request);
@@ -118,7 +120,8 @@ public class GithubServiceImpl implements GithubService {
 
     @Override
     @Transactional
-    public RepositoryDeleteResponse deleteRepository(User user, Long repositoryId) {
+    public RepositoryDeleteResponse deleteRepository(Long userId, Long repositoryId) {
+        User user = findUser(userId);
         GithubRepository repository = githubRepositoryRepository.findById(repositoryId)
                 .orElseThrow(() -> new CustomException(ErrorCode.REPOSITORY_NOT_FOUND));
         if (!repository.getUser().getId().equals(user.getId())) {
@@ -151,6 +154,11 @@ public class GithubServiceImpl implements GithubService {
             log.error("Failed to delete GitHub project repository: {}", repository.getName(), e);
             throw new CustomException(ErrorCode.GITHUB_REPOSITORY_DELETE_FAILED);
         }
+    }
+
+    private User findUser(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_TOKEN));
     }
 
     @Override
