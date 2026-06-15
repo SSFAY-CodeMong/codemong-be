@@ -54,7 +54,11 @@ public class AIService {
 
         // 6. LLM 응답 반환하기
 
-        return new CodeReviewResponse("CodeReviewResponse : " + testPassed);
+        return new CodeReviewResponse(
+                testPassed,
+                codeCheckResult.failedTests(),
+                "CodeReviewResponse : " + testPassed
+        );
     }
 
     public UserQuestionResponse userQuestion(UserQuestionRequest userQuestionRequest, Long repositoryId, Long userId) {

@@ -18,5 +18,5 @@ public interface GithubService {
 
     Boolean validateRepoOwner(Long repositoryId, Long userId);
     Boolean validateIsSuccess(Long repositoryId);
-    Branch createNextStepBranch(Long repositoryId, Long userId);
+    Branch createNextStepBranch(Long repositoryId, Long userId, RepositoryInitRequest request);
 }

@@ -34,7 +34,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -49,6 +48,7 @@ public class GithubServiceImpl implements GithubService {
     @Value("${github.answer.repository}")
     private String answerRepositoryName;
 
+    private static final String ANSWER_REF = "main";
     private static final long MAX_CODE_FILE_BYTES = 1024 * 1024;
 
     private final KmsService kmsService;
@@ -206,7 +206,7 @@ public class GithubServiceImpl implements GithubService {
 
     @Override
     @Transactional
-    public Branch createNextStepBranch(Long repositoryId, Long userId) {
+    public Branch createNextStepBranch(Long repositoryId, Long userId, RepositoryInitRequest request) {
         GithubRepository repository = githubRepositoryRepository.findById(repositoryId)
                 .orElseThrow(() -> new CustomException(ErrorCode.REPOSITORY_NOT_FOUND));
 
@@ -221,25 +221,26 @@ public class GithubServiceImpl implements GithubService {
             throw new CustomException(ErrorCode.BRANCH_NOT_SUCCESS);
         }
 
-        int nextStepNumber = Integer.parseInt(currentBranch.getStep().replace("step", "")) + 1;
-//        if (nextStepNumber > 5) {
-//            throw new CustomException(ErrorCode.NEXT_STEP_NOT_FOUND);
-//        }
-
-        String nextStep = formatStep((long) nextStepNumber);
-        String nextBranchName = buildBranchName(repository.getProject().getName(), nextStep);
+        String projectId = normalizeRepositoryName(repository.getProject().getName());
+        ProjectType track = resolveTrack(repository.getProject(), request);
 
         try {
+            String nextAnswerStepId = resolveNextStepId(currentBranch, request, projectId, track);
+            String nextStep = extractStepPrefix(nextAnswerStepId);
+            String nextBranchName = buildBranchName(repository.getProject().getName(), nextStep);
             String decryptToken = kmsService.decrypt(repository.getUser().getGithubToken());
             GitHub gitHub = new GitHubBuilder().withOAuthToken(decryptToken).build();
             GHRepository remoteRepository = gitHub.getMyself().getRepository(repository.getName());
             GHRef createdBranch = createBranch(remoteRepository, nextBranchName, currentBranch.getSha());
 
+            ProjectType starterTrack = oppositeTrack(track);
             copyAnswerRepositoryContents(
                     remoteRepository,
                     nextBranchName,
-                    nextStep,
-                    repository.getProject().getType() == ProjectType.BE ? ProjectType.FE : ProjectType.BE
+                    projectId,
+                    nextAnswerStepId,
+                    starterTrack,
+                    "starter"
             );
 
             String finalBranchSha = remoteRepository.getRef("heads/" + nextBranchName).getObject().getSha();
@@ -280,27 +281,23 @@ public class GithubServiceImpl implements GithubService {
             GHRepository createdRepository,
             RepositoryInitRequest request
     ) throws IOException {
-        String startStep = formatStep(request.getStartStep());
-        String frontendAnswerStep = formatStep(request.getStartStep());
-        String backendAnswerStep = formatStep(resolveBackendAnswerStep(request.getStartStep()));
+        ProjectType track = resolveTrack(project, request);
+        String projectId = normalizeRepositoryName(project.getName());
+        String answerStepId = resolveStepId(request, projectId, track);
+        String startStep = extractStepPrefix(answerStepId);
         String branchName = buildBranchName(project.getName(), startStep);
 
 
         // 브랜치 생성
         GHRef createdBranch = createBranch(createdRepository, branchName);
 
-        // 프론트 정답 코드 복사 ( e.g. step03 진입이라면, step03의 frontend code를 가져와야 함. )
-        copyAnswerRepositoryContents(createdRepository, branchName, frontendAnswerStep, ProjectType.FE);
-
-        // 백엔드 정답 코드 복사
-        copyAnswerRepositoryContents(createdRepository, branchName, backendAnswerStep, ProjectType.BE);
+        copyAnswerRepositoryContents(createdRepository, branchName, projectId, answerStepId, ProjectType.BE, "starter");
+        copyAnswerRepositoryContents(createdRepository, branchName, projectId, answerStepId, ProjectType.FE, "starter");
 
         String finalBranchSha = createdRepository.getRef("heads/" + branchName).getObject().getSha();
-        String frontendAnswerSha = getAnswerBranchSha(frontendAnswerStep);
-        String backendAnswerSha = getAnswerBranchSha(backendAnswerStep);
+        String answerMainSha = getAnswerMainSha();
 
-        setupRepository.save(new Setup(project, frontendAnswerStep, ProjectType.FE, frontendAnswerSha));
-        setupRepository.save(new Setup(project, backendAnswerStep, ProjectType.BE, backendAnswerSha));
+        setupRepository.save(new Setup(project, startStep, track, answerMainSha));
         processRepository.save(new Process(user, savedRepository, startStep, startStep));
         branchRepository.save(new Branch(
                 user,
@@ -341,34 +338,21 @@ public class GithubServiceImpl implements GithubService {
     private void copyAnswerRepositoryContents(
             GHRepository targetRepository,
             String targetBranchName,
-            String answerStep,
-            ProjectType type
+            String projectId,
+            String stepId,
+            ProjectType track,
+            String artifact
     ) throws IOException {
         validateAnswerRepositoryToken();
         GitHub answerGitHub = new GitHubBuilder().withOAuthToken(answerToken).build();
         GHRepository answerRepository = getAnswerRepository(answerGitHub);
-        log.info(
-                "Copying answer contents. sourceRepository={}, sourceBranch={}, sourcePath={}, targetRepository={}, targetBranch={}",
-                answerRepositoryName,
-                answerStep,
-                type.name(),
-                targetRepository.getFullName(),
-                targetBranchName
-        );
+        String sourcePath = buildAnswerPath(track, projectId, stepId, artifact);
+        String targetRootPath = buildTargetRootPath(track);
         try {
-            copyDirectory(answerRepository, targetRepository, type.name(), answerStep, targetBranchName);
+            copyDirectory(answerRepository, targetRepository, sourcePath, sourcePath, targetRootPath, ANSWER_REF, targetBranchName);
         } catch (CustomException e) {
             throw e;
         } catch (IOException e) {
-            log.error(
-                    "Failed to copy answer contents. sourceRepository={}, sourceBranch={}, sourcePath={}, targetRepository={}, targetBranch={}",
-                    answerRepositoryName,
-                    answerStep,
-                    type.name(),
-                    targetRepository.getFullName(),
-                    targetBranchName,
-                    e
-            );
             throw new CustomException(ErrorCode.GITHUB_ANSWER_CODE_COPY_FAILED);
         }
     }
@@ -377,18 +361,21 @@ public class GithubServiceImpl implements GithubService {
             GHRepository sourceRepository,
             GHRepository targetRepository,
             String path,
+            String sourceRootPath,
+            String targetRootPath,
             String sourceBranchName,
             String targetBranchName
     ) throws IOException {
         List<GHContent> contents = sourceRepository.getDirectoryContent(path, sourceBranchName);
         for (GHContent content : contents) {
             if (content.isDirectory()) {
-                copyDirectory(sourceRepository, targetRepository, content.getPath(), sourceBranchName, targetBranchName);
+                copyDirectory(sourceRepository, targetRepository, content.getPath(), sourceRootPath, targetRootPath, sourceBranchName, targetBranchName);
                 continue;
             }
 
             if (content.isFile()) {
-                upsertContent(targetRepository, targetBranchName, content.getPath(), content.read().readAllBytes());
+                String targetPath = buildTargetPath(removeSourceRoot(content.getPath(), sourceRootPath), targetRootPath);
+                upsertContent(targetRepository, targetBranchName, targetPath, content.read().readAllBytes());
             }
         }
     }
@@ -407,11 +394,11 @@ public class GithubServiceImpl implements GithubService {
         }
     }
 
-    private String getAnswerBranchSha(String answerStep) throws IOException {
+    private String getAnswerMainSha() throws IOException {
         validateAnswerRepositoryToken();
         GitHub answerGitHub = new GitHubBuilder().withOAuthToken(answerToken).build();
         GHRepository answerRepository = getAnswerRepository(answerGitHub);
-        return answerRepository.getRef("heads/" + answerStep).getObject().getSha();
+        return answerRepository.getRef("heads/" + ANSWER_REF).getObject().getSha();
     }
 
     private GHRepository getAnswerRepository(GitHub answerGitHub) throws IOException {
@@ -423,25 +410,105 @@ public class GithubServiceImpl implements GithubService {
         }
     }
 
-    private long resolveBackendAnswerStep(Long startStep) {
-        return Math.max(1, startStep - 1);
-    }
-
     private String formatStep(Long step) {
         return String.format("step%02d", step);
     }
 
+    static String buildAnswerPath(ProjectType track, String projectId, String stepId, String artifact) {
+        String trackPath = track == ProjectType.BE ? "backend" : "frontend";
+        return trackPath + "/" + projectId + "/" + stepId + "/" + artifact;
+    }
+
+    static String buildTargetRootPath(ProjectType track) {
+        return track == ProjectType.FE ? "frontend" : "";
+    }
+
+    static String buildTargetPath(String relativePath, String targetRootPath) {
+        if (!StringUtils.hasText(targetRootPath)) {
+            return relativePath;
+        }
+        return targetRootPath + "/" + relativePath;
+    }
+
+    private String removeSourceRoot(String sourcePath, String sourceRootPath) {
+        String prefix = sourceRootPath.endsWith("/") ? sourceRootPath : sourceRootPath + "/";
+        if (!sourcePath.startsWith(prefix)) {
+            return sourcePath;
+        }
+        return sourcePath.substring(prefix.length());
+    }
+
+    private String resolveStepId(RepositoryInitRequest request, String projectId, ProjectType track) throws IOException {
+        if (StringUtils.hasText(request.getStepId())) {
+            return request.getStepId();
+        }
+        return findAnswerStepId(projectId, track, formatStep(request.getStartStep()));
+    }
+
+    private String resolveNextStepId(
+            Branch currentBranch,
+            RepositoryInitRequest request,
+            String projectId,
+            ProjectType track
+    ) throws IOException {
+        if (request != null && StringUtils.hasText(request.getStepId())) {
+            return request.getStepId();
+        }
+
+        int nextStepNumber = Integer.parseInt(currentBranch.getStep().substring(4, 6)) + 1;
+        return findAnswerStepId(projectId, track, formatStep((long) nextStepNumber));
+    }
+
+    private ProjectType resolveTrack(Project project, RepositoryInitRequest request) {
+        if (request != null && request.getTrack() != null) {
+            return request.getTrack();
+        }
+        if (request != null && request.getType() != null) {
+            return request.getType();
+        }
+        return project.getType();
+    }
+
+    private ProjectType oppositeTrack(ProjectType track) {
+        return track == ProjectType.BE ? ProjectType.FE : ProjectType.BE;
+    }
+
+    private String findAnswerStepId(String projectId, ProjectType track, String stepPrefix) throws IOException {
+        validateAnswerRepositoryToken();
+        GitHub answerGitHub = new GitHubBuilder().withOAuthToken(answerToken).build();
+        GHRepository answerRepository = getAnswerRepository(answerGitHub);
+        String projectPath = buildAnswerProjectPath(track, projectId);
+
+        return answerRepository.getDirectoryContent(projectPath, ANSWER_REF)
+                .stream()
+                .filter(GHContent::isDirectory)
+                .map(GHContent::getName)
+                .filter(name -> name.equals(stepPrefix) || name.startsWith(stepPrefix + "-"))
+                .findFirst()
+                .orElseThrow(() -> new CustomException(ErrorCode.GITHUB_ANSWER_CODE_COPY_FAILED));
+    }
+
+    private String buildAnswerProjectPath(ProjectType track, String projectId) {
+        return (track == ProjectType.BE ? "backend" : "frontend") + "/" + projectId;
+    }
+
     private String buildBranchName(String projectName, String step) {
-        // 0612 수정 ) 합의 내용에 의거, 브랜치명에 날짜 제거
-        return normalizeRepositoryName(projectName) + "-" + step;
+        return normalizeRepositoryName(projectName) + "-" + extractStepPrefix(step);
+    }
+
+    static String extractStepPrefix(String stepId) {
+        if (stepId != null && stepId.matches("^step\\d{2}.*")) {
+            return stepId.substring(0, 6);
+        }
+        return stepId;
     }
 
     private void validateRepositoryInitRequest(RepositoryInitRequest request) {
-        if (request == null || request.getStartStep() == null) {
+        if (request == null || (!StringUtils.hasText(request.getStepId()) && request.getStartStep() == null)) {
             throw new CustomException(ErrorCode.INVALID_REPOSITORY_REQUEST);
         }
 
-        if (request.getStartStep() < 1 || request.getStartStep() > 5) {
+        if (request.getStartStep() != null && (request.getStartStep() < 1 || request.getStartStep() > 5)) {
             throw new CustomException(ErrorCode.INVALID_REPOSITORY_REQUEST);
         }
     }

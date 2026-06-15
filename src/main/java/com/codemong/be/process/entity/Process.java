@@ -36,10 +36,10 @@ public class Process {
     @JoinColumn(name = "repository_id", nullable = false)
     private GithubRepository repository;
 
-    @Column(name = "start_step", nullable = false, length = 10)
+    @Column(name = "start_step", nullable = false, length = 150)
     private String startStep;
 
-    @Column(name = "current_step", nullable = false, length = 10)
+    @Column(name = "current_step", nullable = false, length = 150)
     private String currentStep;
 
     @CreationTimestamp

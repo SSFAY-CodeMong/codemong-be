@@ -36,10 +36,10 @@ public class Branch {
     @JoinColumn(name = "repository_id", nullable = false)
     private GithubRepository repository;
 
-    @Column(nullable = false, length = 50)
+    @Column(nullable = false, length = 150)
     private String name;
 
-    @Column(nullable = false, length = 10)
+    @Column(nullable = false, length = 150)
     private String step;
 
     @Column(nullable = false, length = 300)

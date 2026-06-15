@@ -59,9 +59,10 @@ public class GithubController {
     @Operation(summary="사용자가 다음 단계로 넘어가기 시도")
     public ResponseEntity<?> createNextRepository(
             @PathVariable("repositoryId") Long repositoryId,
+            @RequestBody(required = false) RepositoryInitRequest requestDto,
             @AuthenticationPrincipal Long userId
     ) {
-        Branch branch = githubService.createNextStepBranch(repositoryId, userId);
+        Branch branch = githubService.createNextStepBranch(repositoryId, userId, requestDto);
         return ResponseEntity.status(HttpStatus.CREATED).body(BranchNextResponse.from(branch));
     }
 
