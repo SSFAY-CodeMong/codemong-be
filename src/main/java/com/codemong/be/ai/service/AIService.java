@@ -9,6 +9,7 @@ import com.codemong.be.rag.service.RAGService;
 import com.codemong.be.repository.entity.GithubRepository;
 import com.codemong.be.repository.repository.GithubRepositoryRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 
@@ -16,6 +17,7 @@ import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AIService {
     private final GithubService githubService;
     private final GithubRepositoryRepository githubRepositoryRepository;
@@ -99,8 +101,8 @@ public class AIService {
 //                .user(question) // rag 결과는 여기에 프롬프트로 추가해서 넣기
 //                .call()
 //                .content();
-        System.out.println("모델: gpt-5-mini\n\n[System Prompt]\n" + promptEngineering + "\n\n[User Prompt]\n" + userPrompt
-         + "\n\n[실제 사용자의 질문]\n" + question);
+        log.debug("모델: gpt-5-mini\n\n[System Prompt]\n{}\n\n[User Prompt]\n{}"
+                , promptEngineering, userPrompt);
 
         // 3. 피드백 내용 저장하기(요약)
 
