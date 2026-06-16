@@ -3,9 +3,11 @@ package com.codemong.be.ai.service;
 import com.codemong.be.ai.dto.CodeReviewResponse;
 import com.codemong.be.ai.dto.UserQuestionRequest;
 import com.codemong.be.ai.dto.UserQuestionResponse;
+import com.codemong.be.branch.entity.Branch;
 import com.codemong.be.branch.repository.BranchRepository;
 import com.codemong.be.codecheck.dto.CodeCheckResult;
 import com.codemong.be.codecheck.service.CodeCheckService;
+import com.codemong.be.feedback.entity.Feedback;
 import com.codemong.be.feedback.service.FeedbackService;
 import com.codemong.be.github.service.GithubService;
 import com.codemong.be.rag.service.RAGService;
@@ -18,6 +20,8 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -63,7 +67,7 @@ public class AIService {
 
         // 6. LLM 응답 반환하기
 
-        return new CodeReviewResponse(true, List.of(), "CodeReviewResponse");
+        return new CodeReviewResponse(testPassed, List.of(), "CodeReviewResponse");
     }
 
     public UserQuestionResponse userQuestion(UserQuestionRequest userQuestionRequest, Long repositoryId, Long userId) {
@@ -75,61 +79,91 @@ public class AIService {
         // 1. 사용자의 질의와 관련된 코드들, 사용자의 이전 대화기록 수집
         String question = userQuestionRequest.question();
         String context = ragService.searchSimilarCode(question, userId, repositoryId);
+        Branch curBranch = branchRepository.findTopByRepository_IdOrderByCreatedAtDesc(repositoryId)
+                .orElseThrow(()-> new RuntimeException("TODO : 해당 브랜치가 없습니다."));
+        Long branchId = curBranch.getId();
+        String feedbackSummary = feedbackService.getLatestFeedback(branchId);
+
         // 2. LLM에 질의 하기
-        String promptEngineering = """
-                      너는 Java/Spring 코드 리뷰 도우미다.
+        String systemPrompt = """
+            너는 Java/Spring 코드 설명과 코드 리뷰를 도와주는 백엔드 멘토다.
+            
+            출력은 반드시 아래 두 구역으로 나눈다.
+            
+            [USER_ANSWER]
+            - 사용자에게 보여줄 답변이다.
+            - 한국어로 답변한다.
+            - 결론을 먼저 말한다.
+            - 핵심 근거는 최대 3개 bullet로 설명한다.
+            - 코드 예시는 꼭 필요할 때만 제공한다.
+            - 250토큰 이내로 작성한다.
+            
+            [UPDATED_MEMORY_SUMMARY]
+            - 사용자에게 보여주지 않고 DB에 저장할 내부 누적 요약이다.
+            - 기존 누적 요약과 이번 질문/답변을 합쳐 최신 요약으로 갱신한다.
+            - 다음 질문 이해에 필요한 내용만 남긴다.
+            - 관련 클래스명, 메서드명, 사용자의 관심사를 포함한다.
+            - 컨텍스트에 없는 사실은 추가하지 않는다.
+            - 2~3문장 이내로 작성한다.
+            - 100토큰 이내로 작성한다.
+            """;
 
-                      답변 규칙:
-                      - 한국어로 답변한다.
-                      - 먼저 결론을 2문장 이내로 말한다.
-                      - 그 다음 근거를 bullet로 정리한다.
-                      - 모르는 내용은 추측하지 말고 "컨텍스트만으로는 알 수 없습니다"라고 말한다.
-                      - 코드 예시는 필요한 경우에만 제공한다.
-                      - 마지막에 답변 내용의 간단한 요약을 구분하여 제공한다.
+        String userPrompt = """
+            아래 정보를 참고해서 사용자의 질문에 답변해줘.
+            
+            [기존 누적 요약]
+            %s
+            
+            [코드 컨텍스트]
+            %s
+            
+            [현재 질문]
+            %s
+            """.formatted(feedbackSummary, context, question);
 
-                      답변 형식:
-                      [결론]
-                      ...
-
-                      [근거]
-                      - ...
-
-                      [예시]
-                      ```java
-                      ...
-                      ```
-                      
-                      [요약]
-                      - ...
-                      """;
-        String userPrompt ="""
-              아래 코드 컨텍스트를 참고해서 질문에 답변해줘.
-              컨텍스트에 없는 내용은 추측하지 마.
-
-              [코드 컨텍스트]
-              %s
-
-              [질문]
-              %s
-              """.formatted(context, question);
-//        String answer = chatClient.prompt()
-//                .system(promptEngineering) //역할/답변 형식/제약 조건은 system, 실제 질문은 user
-//                .user(question) // rag 결과는 여기에 프롬프트로 추가해서 넣기
-//                .call()
-//                .content();
+        String answer = chatClient.prompt()
+                .system(systemPrompt)
+                .user(question)
+                .call()
+                .content();
         log.debug("모델: gpt-5-mini\n\n[System Prompt]\n{}\n\n[User Prompt]\n{}"
-                , promptEngineering, userPrompt);
+                , systemPrompt, userPrompt);
 
         // 3. 피드백 내용 저장하기(요약)
+        String userAnswer = parsing(answer, "user");
+        String updatedSummary = parsing(answer, "summary");
+        feedbackService.save(curBranch, updatedSummary);
 
         // 4. LLM 응답 반환하기
 
-        return new UserQuestionResponse("userQuestionResponse");
+        return new UserQuestionResponse(userAnswer);
     }
 
     private boolean isOwner(Long userId, Long repositoryId){
         GithubRepository repo = githubRepositoryRepository.findById(repositoryId)
                 .orElseThrow(()-> new RuntimeException("레포지토리를 찾을 수 없습니다."));
         return userId.equals(repo.getUser().getId());
+    }
+
+    private String parsing(String answer, String type){
+        if (answer == null || answer.isBlank()) {
+            return "";
+        }
+        String regex = (type.equals("user")) ?
+                "\\[USER_ANSWER\\]\\s*(.*?)(?=\\n\\[[A-Z_]+\\]|\\z)"
+                : "\\[UPDATED_MEMORY_SUMMARY\\]\\s*(.*?)(?=\\n\\[[A-Z_]+\\]|\\z)";
+
+        Pattern pattern = Pattern.compile(
+                regex,
+                Pattern.DOTALL
+        );
+
+        Matcher matcher = pattern.matcher(answer);
+
+        if (!matcher.find()) {
+            return "";
+        }
+
+        return matcher.group(1).strip();
     }
 }
