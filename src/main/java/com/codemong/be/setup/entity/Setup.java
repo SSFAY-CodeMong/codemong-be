@@ -34,7 +34,7 @@ public class Setup {
     @JoinColumn(name = "project_id", nullable = false)
     private Project project;
 
-    @Column(nullable = false, length = 10)
+    @Column(nullable = false, length = 150)
     private String step;
 
     @Enumerated(EnumType.STRING)

@@ -36,14 +36,17 @@ public class Branch {
     @JoinColumn(name = "repository_id", nullable = false)
     private GithubRepository repository;
 
-    @Column(nullable = false, length = 50)
+    @Column(nullable = false, length = 150)
     private String name;
 
-    @Column(nullable = false, length = 10)
+    @Column(nullable = false, length = 150)
     private String step;
 
     @Column(nullable = false, length = 300)
     private String sha;
+
+    @Column(name = "is_success", nullable = false, columnDefinition = "BOOLEAN DEFAULT FALSE")
+    private boolean isSuccess = false;
 
     @CreationTimestamp
     @Column(
@@ -60,5 +63,9 @@ public class Branch {
         this.name = name;
         this.step = step;
         this.sha = sha;
+    }
+
+    public void markSuccess() {
+        this.isSuccess = true;
     }
 }

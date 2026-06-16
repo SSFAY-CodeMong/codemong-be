@@ -12,5 +12,7 @@ import lombok.Setter;
 @AllArgsConstructor
 public class RepositoryInitRequest {
     private Long startStep;
+    private String stepId;
+    private ProjectType track;
     private ProjectType type;
 }
