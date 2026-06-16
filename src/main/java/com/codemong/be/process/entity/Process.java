@@ -36,10 +36,10 @@ public class Process {
     @JoinColumn(name = "repository_id", nullable = false)
     private GithubRepository repository;
 
-    @Column(name = "start_step", nullable = false, length = 10)
+    @Column(name = "start_step", nullable = false, length = 150)
     private String startStep;
 
-    @Column(name = "current_step", nullable = false, length = 10)
+    @Column(name = "current_step", nullable = false, length = 150)
     private String currentStep;
 
     @CreationTimestamp
@@ -55,6 +55,10 @@ public class Process {
         this.user = user;
         this.repository = repository;
         this.startStep = startStep;
+        this.currentStep = currentStep;
+    }
+
+    public void updateCurrentStep(String currentStep) {
         this.currentStep = currentStep;
     }
 }
