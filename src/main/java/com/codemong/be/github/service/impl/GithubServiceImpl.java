@@ -231,7 +231,8 @@ public class GithubServiceImpl implements GithubService {
             String decryptToken = kmsService.decrypt(repository.getUser().getGithubToken());
             GitHub gitHub = new GitHubBuilder().withOAuthToken(decryptToken).build();
             GHRepository remoteRepository = gitHub.getMyself().getRepository(repository.getName());
-            GHRef createdBranch = createBranch(remoteRepository, nextBranchName, currentBranch.getSha());
+            String currentBranchLatestSha = getBranchSha(remoteRepository, currentBranch.getName());
+            GHRef createdBranch = createBranch(remoteRepository, nextBranchName, currentBranchLatestSha);
 
             ProjectType starterTrack = oppositeTrack(track);
             copyAnswerRepositoryContents(
@@ -331,6 +332,18 @@ public class GithubServiceImpl implements GithubService {
             throw new CustomException(ErrorCode.GITHUB_BRANCH_BASE_NOT_FOUND);
         } catch (IOException e) {
             log.error("Failed to create branch. repository={}, branch={}", repository.getFullName(), branchName, e);
+            throw new CustomException(ErrorCode.GITHUB_BRANCH_CREATE_FAILED);
+        }
+    }
+
+    private String getBranchSha(GHRepository repository, String branchName) throws IOException {
+        try {
+            return repository.getRef("heads/" + branchName).getObject().getSha();
+        } catch (GHFileNotFoundException e) {
+            log.error("Branch ref not found. repository={}, branch={}", repository.getFullName(), branchName, e);
+            throw new CustomException(ErrorCode.GITHUB_BRANCH_BASE_NOT_FOUND);
+        } catch (IOException e) {
+            log.error("Failed to fetch branch ref. repository={}, branch={}", repository.getFullName(), branchName, e);
             throw new CustomException(ErrorCode.GITHUB_BRANCH_CREATE_FAILED);
         }
     }
