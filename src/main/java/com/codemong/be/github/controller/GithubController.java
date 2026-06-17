@@ -57,7 +57,7 @@ public class GithubController {
 
     @PostMapping("/repositories/{repositoryId}/next")
     @Operation(summary="사용자가 다음 단계로 넘어가기 시도")
-    public ResponseEntity<?> createNextRepository(
+    public ResponseEntity<?> createNextBranch(
             @PathVariable("repositoryId") Long repositoryId,
             @RequestBody(required = false) RepositoryInitRequest requestDto,
             @AuthenticationPrincipal Long userId
