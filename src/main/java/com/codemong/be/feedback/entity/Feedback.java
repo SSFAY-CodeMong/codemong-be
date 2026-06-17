@@ -28,4 +28,8 @@ public class Feedback {
     @CreationTimestamp
     private LocalDateTime createdAt;
 
+    public Feedback(Branch branch, String content){
+        this.branch = branch;
+        this.content = content;
+    }
 }

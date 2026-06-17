@@ -159,6 +159,18 @@ public class RAGService {
         if (filePath.endsWith(".gradle")) {
             return "groovy";
         }
+        if (filePath.endsWith(".js") || filePath.endsWith(".jsx")) {
+            return "javascript";
+        }
+        if (filePath.endsWith(".ts") || filePath.endsWith(".tsx")) {
+            return "typescript";
+        }
+        if (filePath.endsWith(".html")) {
+            return "html";
+        }
+        if (filePath.endsWith(".css")) {
+            return "css";
+        }
 
         return "";
     }
