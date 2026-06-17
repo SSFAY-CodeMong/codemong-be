@@ -67,7 +67,7 @@ public class AIService {
 
         // 6. LLM 응답 반환하기
 
-        return new CodeReviewResponse(testPassed, List.of(), "CodeReviewResponse");
+        return new CodeReviewResponse(testPassed, codeCheckResult.failedTests(), "CodeReviewResponse");
     }
 
     public UserQuestionResponse userQuestion(UserQuestionRequest userQuestionRequest, Long repositoryId, Long userId) {
@@ -135,7 +135,6 @@ public class AIService {
         feedbackService.save(curBranch, updatedSummary);
 
         // 4. LLM 응답 반환하기
-
         return new UserQuestionResponse(userAnswer);
     }
 
