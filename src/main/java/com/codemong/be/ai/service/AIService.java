@@ -50,18 +50,18 @@ public class AIService {
         log.debug("[codeReview] owner check took {} ms", elapsedMs(start));
 
         // TODO: 2. github actions 결과 받아오기
-//        start = System.nanoTime();
-//        log.info("============================== actions call =============================");
-//        CodeCheckResult codeCheckResult = codeCheckService.runGithubActionsCheck(repositoryId, step, userId);
-//        boolean testPassed = codeCheckResult.passed();
-//        if (testPassed) { // 추후, 다음 스텝 넘어가기 수행 시 기준이되는 isSuccess 변경
-//            branchRepository.findTopByRepository_IdOrderByCreatedAtDesc(repositoryId)
-//                    .ifPresent(branch -> {
-//                        branch.markSuccess();
-//                        branchRepository.save(branch);
-//                    });
-//        }
-//        log.debug("[GithubActions] Github Actions took {} ms", elapsedMs(start));
+        start = System.nanoTime();
+        log.info("============================== actions call =============================");
+        CodeCheckResult codeCheckResult = codeCheckService.runGithubActionsCheck(repositoryId, step, userId);
+        boolean testPassed = codeCheckResult.passed();
+        if (testPassed) { // 추후, 다음 스텝 넘어가기 수행 시 기준이되는 isSuccess 변경
+            branchRepository.findTopByRepository_IdOrderByCreatedAtDesc(repositoryId)
+                    .ifPresent(branch -> {
+                        branch.markSuccess();
+                        branchRepository.save(branch);
+                    });
+        }
+        log.debug("[GithubActions] Github Actions took {} ms", elapsedMs(start));
 
         // 3. LLM에 코드 보내기 with 부가정보(*프로젝트 스텝별 설명 등)
         String systemPrompt = """
@@ -142,8 +142,7 @@ public class AIService {
         log.debug("[RAG Save] RAG Save took {} ms", elapsedMs(start));
 
         // 5. LLM 응답 반환하기
-//        return new CodeReviewResponse(testPassed, codeCheckResult.failedTests(), answer);
-        return new CodeReviewResponse(true, List.of(), answer);
+        return new CodeReviewResponse(testPassed, codeCheckResult.failedTests(), answer);
     }
 
 
