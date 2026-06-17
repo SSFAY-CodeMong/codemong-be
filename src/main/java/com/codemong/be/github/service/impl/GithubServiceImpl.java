@@ -168,6 +168,7 @@ public class GithubServiceImpl implements GithubService {
                 .orElseThrow(()-> new RuntimeException("유저를 찾을 수 없습니다."));
         GithubRepository githubRepository = githubRepositoryRepository.findById(repositoryId)
                 .orElseThrow(()-> new RuntimeException("레포지토리를 찾을 수 없습니다."));
+        ProjectType type = githubRepository.getProject().getType();
         String repoName = githubRepository.getName();
         String branchName = branchRepository.findTopByRepository_IdOrderByCreatedAtDesc(repositoryId)
                 .orElseThrow(() -> new CustomException(ErrorCode.GITHUB_BRANCH_BASE_NOT_FOUND))
@@ -177,7 +178,10 @@ public class GithubServiceImpl implements GithubService {
             GitHub github = GitHub.connectUsingOAuth(decryptToken);
             GHRepository repo = github.getMyself().getRepository(repoName);
 
-            return repo.readZip(this::collectZipContents, branchName);
+            return repo.readZip(
+                    inputStream -> collectZipContents(inputStream, type),
+                    branchName
+            );
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -550,7 +554,7 @@ public class GithubServiceImpl implements GithubService {
         throw new CustomException(ErrorCode.GITHUB_BRANCH_BASE_NOT_FOUND);
     }
 
-    private Map<String, String> collectZipContents(InputStream inputStream) throws IOException {
+    private Map<String, String> collectZipContents(InputStream inputStream, ProjectType type) throws IOException {
         Map<String, String> result = new LinkedHashMap<>();
 
         try (ZipInputStream zipInputStream = new ZipInputStream(inputStream, StandardCharsets.UTF_8)) {
@@ -562,7 +566,7 @@ public class GithubServiceImpl implements GithubService {
                 }
 
                 String filePath = removeArchiveRoot(entry.getName());
-                if (!isCodeFile(filePath) || entry.getSize() > MAX_CODE_FILE_BYTES) {
+                if (!checkContentPath(filePath, type) || !isCodeFile(filePath) || entry.getSize() > MAX_CODE_FILE_BYTES) {
                     continue;
                 }
 
@@ -605,6 +609,10 @@ public class GithubServiceImpl implements GithubService {
         return entryName.substring(firstSlashIndex + 1);
     }
 
+    static boolean checkContentPath(String path, ProjectType type) {
+        String filter = (ProjectType.BE.equals(type)) ? "frontend" : "src";
+        return !path.equals(filter) && !path.startsWith(filter + "/");
+    }
 
     private boolean isCodeFile(String path) {
         return path.endsWith(".java")
@@ -613,6 +621,12 @@ public class GithubServiceImpl implements GithubService {
                 || path.endsWith(".yml")
                 || path.endsWith(".yaml")
                 || path.endsWith(".properties")
-                || path.endsWith(".gradle");
+                || path.endsWith(".gradle")
+                || path.endsWith(".ts")
+                || path.endsWith(".tsx")
+                || path.endsWith(".jsx")
+                || path.endsWith(".html")
+                || path.endsWith(".js")
+                || path.endsWith(".css");
     }
 }
