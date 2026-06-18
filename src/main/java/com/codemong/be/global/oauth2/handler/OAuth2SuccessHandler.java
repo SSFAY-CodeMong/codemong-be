@@ -15,6 +15,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -26,7 +27,8 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     private final JwtProvider jwtProvider;
     private final RedisTemplate<String, String> redisTemplate;
 
-    private static final String FRONTEND_REDIRECT_URI = "http://localhost:8081/";
+    @Value("${codemong.frontend.redirect-uri:http://localhost:8081/}")
+    private String frontendRedirectUri;
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
@@ -73,6 +75,6 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, sessionCookie.toString());
 
-        getRedirectStrategy().sendRedirect(request, response, FRONTEND_REDIRECT_URI);
+        getRedirectStrategy().sendRedirect(request, response, frontendRedirectUri);
     }
 }

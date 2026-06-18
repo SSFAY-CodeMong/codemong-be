@@ -74,7 +74,7 @@ public class GithubServiceImpl implements GithubService {
     }
 
     @Override
-    public GHRepository createProjectRepository(Long userId, Long projectId, RepositoryInitRequest request) {
+    public GithubRepository createProjectRepository(Long userId, Long projectId, RepositoryInitRequest request) {
         User user = findUser(userId);
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new CustomException(ErrorCode.PROJECT_NOT_FOUND));
@@ -109,7 +109,7 @@ public class GithubServiceImpl implements GithubService {
 
             initializeRepositoryStep(user, project, savedRepository, createdRepository, request);
 
-            return createdRepository;
+            return savedRepository;
         } catch (CustomException e) {
             throw e;
         } catch (IOException e) {

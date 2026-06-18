@@ -48,7 +48,7 @@ public class AIService {
         // TODO: testPassed 값을 프롬프트 컨텍스트에 포함한다.
 
         // 4. LLM에 응답 대기 시간 동안 추가 질의 시 사용할 RAG를 위해 vectorDB 갱신
-        ragService.save(userId, repositoryId, contents);
+        // ragService.save(userId, repositoryId, contents);
 
         // 5. 피드백 내용을 저장하기(요약)
 
@@ -64,7 +64,7 @@ public class AIService {
     public UserQuestionResponse userQuestion(UserQuestionRequest userQuestionRequest, Long repositoryId, Long userId) {
         // 1. 사용자의 질의와 관련된 코드들, 사용자의 이전 대화기록 수집
         String question = userQuestionRequest.question();
-        String context = ragService.searchSimilarCode(question, userId, repositoryId);
+        // String context = ragService.searchSimilarCode(question, userId, repositoryId);
         // 2. LLM에 질의 하기
 
         // 3. 피드백 내용 저장하기(요약)
