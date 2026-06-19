@@ -27,7 +27,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
     private final JwtProvider jwtProvider;
     private final RedisTemplate<String, String> redisTemplate;
 
-    @Value("${codemong.frontend.redirect-uri:http://localhost:8081/}")
+    @Value("${codemong.frontend.redirect-uri:http://localhost:5173/}")
     private String frontendRedirectUri;
 
     @Override
