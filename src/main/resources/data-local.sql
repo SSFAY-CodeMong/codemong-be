@@ -75,3 +75,163 @@ JOIN (
 ) t ON TRUE
 WHERE p.name = 'mmcafe'
 ON DUPLICATE KEY UPDATE description = VALUES(description);
+
+INSERT INTO mail_categories (name)
+SELECT category.name
+FROM (
+    SELECT 'Spring' AS name
+    UNION ALL
+    SELECT 'JavaScript'
+    UNION ALL
+    SELECT 'Database'
+    UNION ALL
+    SELECT 'Architecture'
+) category
+WHERE NOT EXISTS (
+    SELECT 1 FROM mail_categories existing WHERE existing.name = category.name
+);
+
+INSERT INTO mail_questions
+    (category_id, title, content, model_answer, difficulty, question_type, created_at)
+SELECT c.id, q.title, q.content, q.model_answer, q.difficulty, q.question_type, NOW(6)
+FROM mail_categories c
+JOIN (
+    SELECT 'Spring' AS category_name,
+           'Spring Boot 앱이 시작되지 않는 코드의 문제를 찾아 수정하세요.' AS title,
+           '자동 설정과 컴포넌트 스캔이 적용되지 않는 상황에서 어떤 애노테이션이 필요한지 설명하세요.' AS content,
+           '@SpringBootApplication은 자동 설정과 컴포넌트 스캔을 활성화합니다. 애플리케이션 시작 클래스에 이 애노테이션을 추가해야 Controller, Service, Repository Bean이 정상 등록됩니다.' AS model_answer,
+           'EASY' AS difficulty,
+           'BUG_FIX' AS question_type
+    UNION ALL
+    SELECT 'JavaScript',
+           '비동기 함수가 항상 undefined를 반환하는 이유를 고치세요.',
+           'fetch Promise 체인 내부에서만 값을 반환하고 바깥 async 함수에서 반환하지 않는 코드의 문제를 설명하세요.',
+           'Promise 체인을 return하거나 await로 응답을 받은 뒤 결과를 return해야 합니다. 내부 then의 return은 바깥 함수 반환값이 아닙니다.',
+           'NORMAL',
+           'BUG_FIX'
+    UNION ALL
+    SELECT 'Database',
+           'SQL JOIN 결과가 중복되는 이유를 설명하고 고치세요.',
+           '1:N 관계에서 단순 JOIN을 했을 때 사용자 행이 여러 번 반복되는 이유와 최신 행만 가져오는 방법을 설명하세요.',
+           '1:N 관계를 JOIN하면 N쪽 행 수만큼 결과가 늘어납니다. 사용자별 최신 행만 필요하면 집계 서브쿼리나 윈도우 함수를 사용해 대상 행을 먼저 제한해야 합니다.',
+           'NORMAL',
+           'CONCEPT'
+    UNION ALL
+    SELECT 'Architecture',
+           '서비스 계층을 분리해야 하는 이유를 설명하세요.',
+           'Controller에 비즈니스 로직과 외부 연동 로직이 몰렸을 때 어떤 문제가 생기는지 설명하세요.',
+           'Controller는 요청/응답 변환에 집중하고 비즈니스 규칙은 Service로 분리해야 테스트, 재사용, 트랜잭션 경계 관리가 쉬워집니다.',
+           'EASY',
+           'DESIGN'
+) q ON q.category_name = c.name
+WHERE NOT EXISTS (
+    SELECT 1 FROM mail_questions existing WHERE existing.title = q.title
+);
+
+UPDATE mail_questions
+SET content = 'The function below is used on a problem-solving page. It should return the fetched user name, but callers keep receiving undefined. Explain the bug and fix the code.',
+    code_template = 'async function loadUserName(userId) {
+  fetch(`/api/users/${userId}`)
+    .then(response => response.json())
+    .then(user => {
+      return user.name;
+    });
+}
+
+const name = await loadUserName(7);
+console.log(name);',
+    model_answer = 'The outer async function does not return the Promise chain. Return the fetch chain or use await, then return user.name from the outer function. Example: const response = await fetch(...); const user = await response.json(); return user.name;',
+    difficulty = 'NORMAL',
+    question_type = 'BUG_FIX'
+WHERE title = '비동기 함수가 항상 undefined를 반환하는 이유를 고쳐보세요.'
+   OR title LIKE '%undefined%';
+
+UPDATE mail_questions
+SET content = 'Review the controller code. The endpoint works, but the controller owns too much business logic. Point out the problem and suggest a cleaner service-layer design.',
+    code_template = '@RestController
+@RequiredArgsConstructor
+public class OrderController {
+    private final OrderRepository orderRepository;
+    private final CouponRepository couponRepository;
+
+    @PostMapping("/orders")
+    public OrderResponse create(@RequestBody OrderRequest request) {
+        Coupon coupon = couponRepository.findByCode(request.couponCode())
+            .orElseThrow();
+        int discountedPrice = request.price() - coupon.discountAmount();
+        Order order = orderRepository.save(new Order(request.userId(), discountedPrice));
+        return new OrderResponse(order.getId(), order.getPrice());
+    }
+}',
+    model_answer = 'The controller mixes HTTP handling, repository access, discount policy, and persistence. Move order creation into an OrderService, keep the controller responsible for request/response mapping, and put validation and transaction boundaries in the service.',
+    difficulty = 'NORMAL',
+    question_type = 'CODE_REVIEW'
+WHERE title LIKE '%서비스 계층%'
+   OR title LIKE '%Controller%';
+
+INSERT INTO mail_questions
+    (category_id, title, content, code_template, model_answer, difficulty, question_type, created_at)
+SELECT c.id,
+       q.title,
+       q.content,
+       q.code_template,
+       q.model_answer,
+       q.difficulty,
+       q.question_type,
+       NOW(6)
+FROM mail_categories c
+JOIN (
+    SELECT 'JavaScript' AS category_name,
+           'Array map 결과가 비어 보이는 버그를 고쳐보세요.' AS title,
+           'The code should return only active user names. Find the bug and submit a corrected version.' AS content,
+           'function activeNames(users) {
+  const names = [];
+  users.map(user => {
+    if (user.active) {
+      names.push(user.name);
+    }
+  });
+}
+
+console.log(activeNames([
+  { name: "Ari", active: true },
+  { name: "Bo", active: false }
+]));' AS code_template,
+           'Return the computed value. Prefer users.filter(user => user.active).map(user => user.name), or return names after the loop. The original function returns undefined.' AS model_answer,
+           'EASY' AS difficulty,
+           'BUG_FIX' AS question_type
+    UNION ALL
+    SELECT 'Spring',
+           'Spring Service 트랜잭션 누락 문제를 찾아보세요.',
+           'The service saves an article and then saves tags. If tag saving fails, the article still remains. Explain why and fix the transaction boundary.',
+           '@Service
+@RequiredArgsConstructor
+public class ArticleService {
+    private final ArticleRepository articleRepository;
+    private final TagRepository tagRepository;
+
+    public Long create(CreateArticleRequest request) {
+        Article article = articleRepository.save(new Article(request.title(), request.content()));
+        request.tags().forEach(tag -> tagRepository.save(new Tag(article, tag)));
+        return article.getId();
+    }
+}',
+           'Add @Transactional to the service method so article and tags are committed or rolled back together. Keep transaction boundaries in the service layer, not the controller.',
+           'NORMAL',
+           'BUG_FIX'
+    UNION ALL
+    SELECT 'Database',
+           'N+1 쿼리가 발생하는 JPA 코드를 개선해보세요.',
+           'This code prints each order member name. In production it creates too many SQL queries. Explain the cause and propose a fix.',
+           'List<Order> orders = orderRepository.findAll();
+
+for (Order order : orders) {
+    System.out.println(order.getMember().getName());
+}',
+           'Accessing lazy member for each order can cause N+1 selects. Use fetch join, EntityGraph, batch size, or a dedicated DTO query depending on the screen requirement.',
+           'NORMAL',
+           'CODE_REVIEW'
+) q ON q.category_name = c.name
+WHERE NOT EXISTS (
+    SELECT 1 FROM mail_questions existing WHERE existing.title = q.title
+);

@@ -47,4 +47,8 @@ public class User {
     public void updateGithubToken(String encryptToken) {
         this.githubToken = encryptToken;
     }
+
+    public void updateEmail(String email) {
+        this.email = email;
+    }
 }
