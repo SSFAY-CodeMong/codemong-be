@@ -9,6 +9,7 @@ public record LearningRepositoryResponse(
         Long projectId,
         String projectName,
         String projectType,
+        int maxStep,
         String name,
         String htmlUrl,
         LocalDateTime createdAt
@@ -19,6 +20,7 @@ public record LearningRepositoryResponse(
                 repository.getProject().getId(),
                 repository.getProject().getName(),
                 repository.getProject().getType().name(),
+                repository.getProject().getMaxStep(),
                 repository.getName(),
                 repository.getHtmlUrl(),
                 repository.getCreatedAt()

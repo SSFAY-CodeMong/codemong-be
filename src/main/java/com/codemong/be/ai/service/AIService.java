@@ -1,6 +1,7 @@
 package com.codemong.be.ai.service;
 
 import com.codemong.be.ai.dto.CodeReviewResponse;
+import com.codemong.be.ai.dto.FailedTestResponse;
 import com.codemong.be.ai.dto.UserQuestionRequest;
 import com.codemong.be.ai.dto.UserQuestionResponse;
 import com.codemong.be.branch.entity.Branch;
@@ -9,6 +10,8 @@ import com.codemong.be.codecheck.dto.CodeCheckResult;
 import com.codemong.be.codecheck.service.CodeCheckService;
 import com.codemong.be.feedback.service.FeedbackService;
 import com.codemong.be.github.service.GithubService;
+import com.codemong.be.project.entity.TestCode;
+import com.codemong.be.project.repository.TestCodeRepository;
 import com.codemong.be.rag.service.RAGService;
 import com.codemong.be.repository.entity.GithubRepository;
 import com.codemong.be.repository.repository.GithubRepositoryRepository;
@@ -20,6 +23,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -34,6 +38,7 @@ public class AIService {
     private final RAGService ragService;
     private final FeedbackService feedbackService;
     private final ChatClient chatClient;
+    private final TestCodeRepository testCodeRepository;
 
 
     public CodeReviewResponse codeReview(Long repositoryId, Long step, Long userId) {
@@ -128,6 +133,7 @@ public class AIService {
                 .content();
 
         log.debug("[ChatClient Call] ChatClient Call took {} ms", elapsedMs(start));
+        log.info(" review answer length :: {}", answer == null ? -1 : answer.length());
 
         boolean isSaved = false;
 
@@ -140,9 +146,14 @@ public class AIService {
             log.error("RAG 저장 실패", e);
         }
         log.debug("[RAG Save] RAG Save took {} ms", elapsedMs(start));
-
+        log.info(" review asnwer test :: {}", answer);
         // 5. LLM 응답 반환하기
-        return new CodeReviewResponse(testPassed, codeCheckResult.failedTests(), answer, isSaved);
+        List<FailedTestResponse> failedTestDetails = resolveFailedTestDetails(
+                repositoryId,
+                step,
+                codeCheckResult.failedTests()
+        );
+        return new CodeReviewResponse(testPassed, codeCheckResult.failedTests(), failedTestDetails, answer, isSaved);
     }
 
 
@@ -265,6 +276,45 @@ public class AIService {
         }
 
         return sb.toString();
+    }
+
+    private List<FailedTestResponse> resolveFailedTestDetails(Long repositoryId, Long step, List<String> failedTests) {
+        if (failedTests == null || failedTests.isEmpty()) {
+            return List.of();
+        }
+
+        GithubRepository repository = githubRepositoryRepository.findByIdWithUserAndProject(repositoryId)
+                .orElseThrow(() -> new RuntimeException("Repository not found."));
+        int stepNumber = step == null ? 1 : step.intValue();
+        List<String> methodNames = failedTests.stream()
+                .map(this::normalizeMethodName)
+                .distinct()
+                .toList();
+        Map<String, TestCode> testCodeByMethodName = testCodeRepository
+                .findByProject_IdAndStepAndMethodNameIn(repository.getProject().getId(), stepNumber, methodNames)
+                .stream()
+                .collect(Collectors.toMap(TestCode::getMethodName, testCode -> testCode));
+
+        return failedTests.stream()
+                .map(failedTest -> {
+                    String methodName = normalizeMethodName(failedTest);
+                    TestCode testCode = testCodeByMethodName.get(methodName);
+                    String description = testCode == null
+                            ? "해당 테스트 메서드 설명이 아직 등록되어 있지 않습니다."
+                            : testCode.getDescription();
+                    return new FailedTestResponse(failedTest, methodName, description);
+                })
+                .toList();
+    }
+
+    private String normalizeMethodName(String failedTest) {
+        if (failedTest == null || failedTest.isBlank()) {
+            return "";
+        }
+        String trimmed = failedTest.trim();
+        int lastDotIndex = trimmed.lastIndexOf('.');
+        String methodName = lastDotIndex >= 0 ? trimmed.substring(lastDotIndex + 1) : trimmed;
+        return methodName.replaceFirst("\\(.*\\)$", "");
     }
 
     private String resolveCodeFenceLanguage(String filePath) {

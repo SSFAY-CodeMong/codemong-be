@@ -31,6 +31,9 @@ public class Project {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String description;
 
+    @Column(name = "max_step", nullable = false, columnDefinition = "INT DEFAULT 5")
+    private int maxStep = 5;
+
     @CreationTimestamp
     @Column(
             name = "created_at",
@@ -46,9 +49,23 @@ public class Project {
         this.description = description;
     }
 
+    public Project(String name, ProjectType type, String description, int maxStep) {
+        this.name = name;
+        this.type = type;
+        this.description = description;
+        this.maxStep = maxStep;
+    }
+
     public void update(String name, ProjectType type, String description) {
         this.name = name;
         this.type = type;
         this.description = description;
+    }
+
+    public void update(String name, ProjectType type, String description, int maxStep) {
+        this.name = name;
+        this.type = type;
+        this.description = description;
+        this.maxStep = maxStep;
     }
 }

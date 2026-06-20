@@ -79,6 +79,7 @@ public class GithubServiceImpl implements GithubService {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new CustomException(ErrorCode.PROJECT_NOT_FOUND));
         validateRepositoryInitRequest(request);
+        validateStartStep(project, request);
 
         try {
             String decryptToken = kmsService.decrypt(user.getGithubToken());
@@ -140,8 +141,6 @@ public class GithubServiceImpl implements GithubService {
                     repository.getName(),
                     repository.getHtmlUrl()
             );
-            branchRepository.deleteByRepository(repository);
-            processRepository.deleteByRepository(repository);
             githubRepositoryRepository.delete(repository);
 
             return response;
@@ -526,7 +525,13 @@ public class GithubServiceImpl implements GithubService {
             throw new CustomException(ErrorCode.INVALID_REPOSITORY_REQUEST);
         }
 
-        if (request.getStartStep() != null && (request.getStartStep() < 1 || request.getStartStep() > 5)) {
+        if (request.getStartStep() != null && request.getStartStep() < 1) {
+            throw new CustomException(ErrorCode.INVALID_REPOSITORY_REQUEST);
+        }
+    }
+
+    private void validateStartStep(Project project, RepositoryInitRequest request) {
+        if (request.getStartStep() != null && request.getStartStep() > project.getMaxStep()) {
             throw new CustomException(ErrorCode.INVALID_REPOSITORY_REQUEST);
         }
     }

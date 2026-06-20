@@ -1,7 +1,9 @@
 package com.codemong.be.branch.entity;
 
 import com.codemong.be.repository.entity.GithubRepository;
+import com.codemong.be.feedback.entity.Feedback;
 import com.codemong.be.user.entity.User;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -10,6 +12,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -17,6 +20,8 @@ import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "branches")
@@ -47,6 +52,9 @@ public class Branch {
 
     @Column(name = "is_success", nullable = false, columnDefinition = "BOOLEAN DEFAULT FALSE")
     private boolean isSuccess = false;
+
+    @OneToMany(mappedBy = "branch", cascade = CascadeType.REMOVE, orphanRemoval = true)
+    private List<Feedback> feedbacks = new ArrayList<>();
 
     @CreationTimestamp
     @Column(
