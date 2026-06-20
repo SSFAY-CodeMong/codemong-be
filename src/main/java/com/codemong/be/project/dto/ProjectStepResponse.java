@@ -1,6 +1,6 @@
 package com.codemong.be.project.dto;
 
-import com.codemong.be.project.entity.Project;
+import com.codemong.be.project.entity.ProjectStep;
 
 public record ProjectStepResponse(
         Long projectId,
@@ -9,14 +9,14 @@ public record ProjectStepResponse(
         String title,
         String description
 ) {
-    public static ProjectStepResponse from(Project project, long step) {
-        String stepId = String.format("step%02d", step);
+    public static ProjectStepResponse from(ProjectStep projectStep) {
+        String stepId = String.format("step%02d", projectStep.getStep());
         return new ProjectStepResponse(
-                project.getId(),
-                step,
+                projectStep.getProject().getId(),
+                (long) projectStep.getStep(),
                 stepId,
-                "Step " + step,
-                project.getName() + " " + stepId + " 요구사항을 구현합니다."
+                "Step " + projectStep.getStep(),
+                projectStep.getContent()
         );
     }
 }
