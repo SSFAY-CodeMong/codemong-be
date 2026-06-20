@@ -10,6 +10,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class BranchNextResponse {
     private Long id;
+    private Long repositoryId;
+    private Long projectId;
+    private String projectName;
     private String name;
     private String step;
     private String sha;
@@ -18,6 +21,9 @@ public class BranchNextResponse {
     public static BranchNextResponse from(Branch branch) {
         return new BranchNextResponse(
                 branch.getId(),
+                branch.getRepository().getId(),
+                branch.getRepository().getProject().getId(),
+                branch.getRepository().getProject().getName(),
                 branch.getName(),
                 branch.getStep(),
                 branch.getSha(),

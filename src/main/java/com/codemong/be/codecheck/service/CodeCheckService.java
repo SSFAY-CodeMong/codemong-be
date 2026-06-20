@@ -6,6 +6,8 @@ import com.codemong.be.branch.entity.Branch;
 import com.codemong.be.branch.repository.BranchRepository;
 import com.codemong.be.codecheck.dto.CodeCheckCallbackRequest;
 import com.codemong.be.codecheck.dto.CodeCheckResult;
+import com.codemong.be.codecheck.dto.CodeCheckStartResponse;
+import com.codemong.be.codecheck.dto.CodeCheckStatusResponse;
 import com.codemong.be.codecheck.util.CodeCheckArtifactUtil;
 import com.codemong.be.global.exception.CustomException;
 import com.codemong.be.global.exception.ErrorCode;
@@ -16,6 +18,7 @@ import com.codemong.be.repository.repository.GithubRepositoryRepository;
 import com.codemong.be.user.entity.User;
 import com.codemong.be.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.kohsuke.github.GHMyself;
 import org.kohsuke.github.GHRepository;
 import org.kohsuke.github.GitHub;
@@ -34,9 +37,15 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CodeCheckService {
 
     private static final String ANSWER_REF = "main";
@@ -49,6 +58,8 @@ public class CodeCheckService {
     private final KmsService kmsService;
     private final ObjectMapper objectMapper;
     private final CodeCheckArtifactUtil codeCheckArtifactUtil;
+    private final Map<String, AsyncCheck> asyncChecks = new ConcurrentHashMap<>();
+    private final Executor checkExecutor = Executors.newCachedThreadPool();
 
     @Value("${github.answer.repository}")
     private String answerRepositoryName;
@@ -56,10 +67,50 @@ public class CodeCheckService {
     @Value("${github.answer.token}")
     private String answerToken;
 
+    public CodeCheckStartResponse startAsyncCheck(Long repositoryId, Long step, Long userId) {
+        GithubRepository repository = githubRepositoryRepository.findByIdWithUserAndProject(repositoryId)
+                .orElseThrow(() -> new CustomException(ErrorCode.REPOSITORY_NOT_FOUND));
+        if (!repository.getUser().getId().equals(userId)) {
+            throw new CustomException(ErrorCode.REPOSITORY_ACCESS_DENIED);
+        }
+
+        String checkId = UUID.randomUUID().toString();
+        AsyncCheck asyncCheck = AsyncCheck.running(checkId, userId, repositoryId, step);
+        asyncChecks.put(checkId, asyncCheck);
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                CodeCheckResult result = runGithubActionsCheck(repositoryId, step, userId);
+                if (result.passed()) {
+                    branchRepository.findTopByRepository_IdOrderByCreatedAtDesc(repositoryId)
+                            .ifPresent(branch -> {
+                                branch.markSuccess();
+                                branchRepository.save(branch);
+                            });
+                }
+                asyncCheck.complete(result);
+            } catch (Exception e) {
+                log.error("Async code check failed. checkId={}, repositoryId={}, step={}",
+                        checkId, repositoryId, step, e);
+                asyncCheck.fail(resolveErrorMessage(e));
+            }
+        }, checkExecutor);
+
+        return new CodeCheckStartResponse(checkId, "RUNNING");
+    }
+
+    public CodeCheckStatusResponse getAsyncCheckStatus(String checkId, Long userId) {
+        AsyncCheck check = asyncChecks.get(checkId);
+        if (check == null || !check.userId().equals(userId)) {
+            throw new CustomException(ErrorCode.REPOSITORY_NOT_FOUND);
+        }
+        return check.toResponse();
+    }
+
     public CodeCheckResult runGithubActionsCheck(Long repositoryId, Long step, Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new CustomException(ErrorCode.INVALID_TOKEN));
-        GithubRepository repository = githubRepositoryRepository.findById(repositoryId)
+        GithubRepository repository = githubRepositoryRepository.findByIdWithUserAndProject(repositoryId)
                 .orElseThrow(() -> new CustomException(ErrorCode.REPOSITORY_NOT_FOUND));
 
         if (!repository.getUser().getId().equals(user.getId())) {
@@ -175,6 +226,7 @@ public class CodeCheckService {
             }
 
             if (response.statusCode() == 204) {
+                log.info("GitHub Actions workflow dispatched. repository={}, workflow={}", fullRepositoryName, workflowPath);
                 return;
             }
 
@@ -189,8 +241,12 @@ public class CodeCheckService {
             }
 
             if (response.statusCode() == 404) {
+                log.warn("GitHub Actions workflow not found. repository={}, workflow={}, body={}",
+                        fullRepositoryName, workflowPath, response.body());
                 throw new CustomException(ErrorCode.GITHUB_ACTIONS_WORKFLOW_NOT_FOUND);
             }
+            log.warn("GitHub Actions dispatch failed. repository={}, workflow={}, status={}, body={}",
+                    fullRepositoryName, workflowPath, response.statusCode(), response.body());
             throw new CustomException(ErrorCode.GITHUB_ACTIONS_DISPATCH_FAILED);
         }
     }
@@ -280,6 +336,64 @@ public class CodeCheckService {
         }
 
         return null;
+    }
+
+    private String resolveErrorMessage(Exception e) {
+        if (e instanceof CustomException customException) {
+            return customException.getErrorCode().getMessage();
+        }
+        return e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
+    }
+
+    private static final class AsyncCheck {
+        private final String checkId;
+        private final Long userId;
+        private final Long repositoryId;
+        private final Long step;
+        private volatile String status;
+        private volatile boolean passed;
+        private volatile java.util.List<String> failedTests;
+        private volatile String message;
+
+        private AsyncCheck(String checkId, Long userId, Long repositoryId, Long step) {
+            this.checkId = checkId;
+            this.userId = userId;
+            this.repositoryId = repositoryId;
+            this.step = step;
+            this.status = "RUNNING";
+            this.failedTests = java.util.List.of();
+        }
+
+        static AsyncCheck running(String checkId, Long userId, Long repositoryId, Long step) {
+            return new AsyncCheck(checkId, userId, repositoryId, step);
+        }
+
+        Long userId() {
+            return userId;
+        }
+
+        void complete(CodeCheckResult result) {
+            this.passed = result.passed();
+            this.failedTests = result.failedTests();
+            this.status = result.passed() ? "PASSED" : "FAILED";
+        }
+
+        void fail(String message) {
+            this.message = message;
+            this.status = "ERROR";
+        }
+
+        CodeCheckStatusResponse toResponse() {
+            return new CodeCheckStatusResponse(
+                    checkId,
+                    repositoryId,
+                    step,
+                    status,
+                    passed,
+                    failedTests,
+                    message
+            );
+        }
     }
 
 }

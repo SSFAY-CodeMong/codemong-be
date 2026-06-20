@@ -23,6 +23,7 @@ public class Feedback {
     @JoinColumn(name = "branch_id", nullable = false)
     private Branch branch;
 
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
     @CreationTimestamp
