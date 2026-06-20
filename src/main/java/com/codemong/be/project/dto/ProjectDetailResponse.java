@@ -14,12 +14,13 @@ public record ProjectDetailResponse(
         String description,
         String difficulty,
         String category,
+        int maxStep,
         long steps,
         List<String> goals,
         List<String> stacks,
         LocalDateTime createdAt
 ) {
-    public static ProjectDetailResponse from(Project project, long steps) {
+    public static ProjectDetailResponse from(Project project) {
         String category = project.getType() == ProjectType.BE ? "Backend" : "Frontend";
         List<String> stacks = project.getType() == ProjectType.BE
                 ? List.of("Spring Boot", "JPA", "GitHub Actions", "REST API")
@@ -32,8 +33,13 @@ public record ProjectDetailResponse(
                 project.getDescription(),
                 "Basic",
                 category,
-                steps,
-                List.of("요구사항을 단계별로 구현합니다.", "GitHub 저장소에서 작업합니다.", "검사 결과를 확인하고 다음 단계로 이동합니다."),
+                project.getMaxStep(),
+                project.getMaxStep(),
+                List.of(
+                        "요구사항을 단계별로 구현합니다.",
+                        "GitHub 저장소에서 작업합니다.",
+                        "검사 결과를 확인하고 다음 단계로 이동합니다."
+                ),
                 stacks,
                 project.getCreatedAt()
         );
