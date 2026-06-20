@@ -15,7 +15,6 @@ import com.codemong.be.repository.repository.GithubRepositoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.stereotype.Service;
 
@@ -38,11 +37,6 @@ public class AIService {
 
 
     public CodeReviewResponse codeReview(Long repositoryId, Long step, Long userId) {
-        // 0. 요청 사용자가 레포지토리의 주인인지 확인
-        if(!isOwner(userId, repositoryId)){
-            throw new RuntimeException("레포지토리 소유자만이 검사하기를 요청할 수 있습니다.");
-        }
-
         // 1. 사용자의 코드 & *프로젝트 스텝별 설명 가져오기
         long start = System.nanoTime();
         Map<String, String> contents = githubService.getBranchContents(repositoryId, step, userId);
@@ -135,23 +129,24 @@ public class AIService {
 
         log.debug("[ChatClient Call] ChatClient Call took {} ms", elapsedMs(start));
 
+        boolean isSaved = false;
 
         // 4. LLM에 응답 대기 시간 동안 추가 질의 시 사용할 RAG를 위해 vectorDB 갱신
         start = System.nanoTime();
-        ragService.save(userId, repositoryId, contents);
+        try {
+            ragService.save(userId, repositoryId, contents);
+            isSaved = true;
+        }catch (Exception e){
+            log.error("RAG 저장 실패", e);
+        }
         log.debug("[RAG Save] RAG Save took {} ms", elapsedMs(start));
 
         // 5. LLM 응답 반환하기
-        return new CodeReviewResponse(testPassed, codeCheckResult.failedTests(), answer);
+        return new CodeReviewResponse(testPassed, codeCheckResult.failedTests(), answer, isSaved);
     }
 
 
     public UserQuestionResponse userQuestion(UserQuestionRequest userQuestionRequest, Long repositoryId, Long userId) {
-        // 0. 요청 사용자가 레포지토리의 주인인지 확인
-        if(!isOwner(userId, repositoryId)){
-            throw new RuntimeException("레포지토리 소유자만이 검사하기를 요청할 수 있습니다.");
-        }
-
         // 1. 사용자의 질의와 관련된 코드들, 사용자의 이전 대화기록 수집
         String question = userQuestionRequest.question();
         String context = ragService.searchSimilarCode(question, userId, repositoryId);
@@ -214,12 +209,6 @@ public class AIService {
 
         // 4. LLM 응답 반환하기
         return new UserQuestionResponse(userAnswer);
-    }
-
-    private boolean isOwner(Long userId, Long repositoryId){
-        GithubRepository repo = githubRepositoryRepository.findById(repositoryId)
-                .orElseThrow(()-> new RuntimeException("레포지토리를 찾을 수 없습니다."));
-        return userId.equals(repo.getUser().getId());
     }
 
     private String parsing(String answer, String type){

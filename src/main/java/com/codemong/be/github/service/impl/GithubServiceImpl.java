@@ -168,6 +168,9 @@ public class GithubServiceImpl implements GithubService {
                 .orElseThrow(()-> new RuntimeException("유저를 찾을 수 없습니다."));
         GithubRepository githubRepository = githubRepositoryRepository.findById(repositoryId)
                 .orElseThrow(()-> new RuntimeException("레포지토리를 찾을 수 없습니다."));
+
+        validateRepoOwner(repositoryId, userId);
+
         ProjectType type = githubRepository.getProject().getType();
         String repoName = githubRepository.getName();
         String branchName = branchRepository.findTopByRepository_IdOrderByCreatedAtDesc(repositoryId)
@@ -188,15 +191,13 @@ public class GithubServiceImpl implements GithubService {
     }
 
     @Override
-    public Boolean validateRepoOwner(Long repositoryId, Long userId) {
+    public void validateRepoOwner(Long repositoryId, Long userId) {
         GithubRepository curRepo = githubRepositoryRepository.findGithubRepositoryById(repositoryId)
                 .orElseThrow(() -> new CustomException(ErrorCode.REPOSITORY_NOT_FOUND));
 
         if (!curRepo.getUser().getId().equals(userId)) {
             throw new CustomException(ErrorCode.REPOSITORY_ACCESS_DENIED);
         }
-
-        return true;
     }
 
     @Override

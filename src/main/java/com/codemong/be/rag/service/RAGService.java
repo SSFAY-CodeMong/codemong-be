@@ -1,5 +1,7 @@
 package com.codemong.be.rag.service;
 
+import com.codemong.be.github.service.GithubService;
+import com.codemong.be.repository.entity.GithubRepository;
 import com.github.javaparser.ParseProblemException;
 import com.github.javaparser.Position;
 import com.github.javaparser.Range;
@@ -25,10 +27,19 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class RAGService {
     private final VectorStore vectorStore;
+    private final GithubService githubService;
 
     @Transactional
     public void save(Long userId, Long repositoryId, Map<String, String> contents) {
         String version = UUID.randomUUID().toString();
+
+        if(contents.isEmpty()){
+            // 합의로 step 넣을지 말지 결정 필요 -> save 에도 넣을지 말지 고민해야함
+            // 만약에 넣게된다? -> aiService에서 전달안되던 step 전달/
+            // githubService에서 레포지토리의 최신 브랜치네임을 가져오는것이 아닌 레포와 step으로 검사 ->
+            // 그러기 위해서는 step이 Long이어야함
+            contents = githubService.getBranchContents(repositoryId, 1L, userId);
+        }
 
         // 저장 로직
         List<Document> documents = new ArrayList<>();
