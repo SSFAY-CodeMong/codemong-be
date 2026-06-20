@@ -1,4 +1,4 @@
-package com.codemong.be.feedback.entity;
+package com.codemong.be.chathistory.entity;
 
 import com.codemong.be.branch.entity.Branch;
 import jakarta.persistence.*;
@@ -12,8 +12,8 @@ import java.time.LocalDateTime;
 @Entity
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Getter
-@Table(name = "feedbacks")
-public class Feedback {
+@Table(name = "chat_histories")
+public class ChatHistory {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
@@ -28,7 +28,7 @@ public class Feedback {
     @CreationTimestamp
     private LocalDateTime createdAt;
 
-    public Feedback(Branch branch, String content){
+    public ChatHistory(Branch branch, String content){
         this.branch = branch;
         this.content = content;
     }
