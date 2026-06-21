@@ -48,7 +48,7 @@ public class MailContent {
     @Column(nullable = false, length = 300)
     private String title;
 
-    @Column(nullable = false, columnDefinition = "LONGTEXT")
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
     @CreationTimestamp
