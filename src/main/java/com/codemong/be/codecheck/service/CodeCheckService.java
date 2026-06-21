@@ -129,7 +129,7 @@ public class CodeCheckService {
             String targetBranchName = currentBranch.getName();
             String targetSha = userRepository.getRef("heads/" + targetBranchName).getObject().getSha();
             String projectId = repository.getProject().getName().toLowerCase();
-            String stepId = currentBranch.getStep();
+            String stepId = String.format("step%02d", currentBranch.getStep());
 //            String stepId = "step01"; // 잠깐만 1
             String track = repository.getProject().getType() == ProjectType.BE ? "backend" : "frontend";
             String workflowPath = ".github/workflows/check-" + track + ".yml";

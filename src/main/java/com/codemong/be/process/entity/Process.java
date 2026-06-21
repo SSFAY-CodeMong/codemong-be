@@ -36,11 +36,11 @@ public class Process {
     @JoinColumn(name = "repository_id", nullable = false)
     private GithubRepository repository;
 
-    @Column(name = "start_step", nullable = false, length = 150)
-    private String startStep;
+    @Column(name = "start_step", nullable = false)
+    private Long startStep;
 
-    @Column(name = "current_step", nullable = false, length = 150)
-    private String currentStep;
+    @Column(name = "current_step", nullable = false)
+    private Long currentStep;
 
     @CreationTimestamp
     @Column(
@@ -51,14 +51,14 @@ public class Process {
     )
     private LocalDateTime createdAt;
 
-    public Process(User user, GithubRepository repository, String startStep, String currentStep) {
+    public Process(User user, GithubRepository repository, Long startStep, Long currentStep) {
         this.user = user;
         this.repository = repository;
         this.startStep = startStep;
         this.currentStep = currentStep;
     }
 
-    public void updateCurrentStep(String currentStep) {
+    public void updateCurrentStep(Long currentStep) {
         this.currentStep = currentStep;
     }
 }

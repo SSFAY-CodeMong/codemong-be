@@ -14,7 +14,7 @@ public class BranchNextResponse {
     private Long projectId;
     private String projectName;
     private String name;
-    private String step;
+    private Long step;
     private String sha;
     private boolean success;
 

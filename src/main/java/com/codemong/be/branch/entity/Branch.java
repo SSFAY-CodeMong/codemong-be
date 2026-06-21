@@ -44,8 +44,8 @@ public class Branch {
     @Column(nullable = false, length = 150)
     private String name;
 
-    @Column(nullable = false, length = 150)
-    private String step;
+    @Column(nullable = false)
+    private Long step;
 
     @Column(nullable = false, length = 300)
     private String sha;
@@ -65,7 +65,7 @@ public class Branch {
     )
     private LocalDateTime createdAt;
 
-    public Branch(User user, GithubRepository repository, String name, String step, String sha) {
+    public Branch(User user, GithubRepository repository, String name, Long step, String sha) {
         this.user = user;
         this.repository = repository;
         this.name = name;

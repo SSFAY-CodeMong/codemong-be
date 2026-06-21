@@ -13,8 +13,8 @@ public record LearningRepositoryStatusResponse(
         int maxStep,
         String repositoryName,
         String htmlUrl,
-        String startStep,
-        String currentStep,
+        Long startStep,
+        Long currentStep,
         String branchName,
         String branchSha,
         boolean currentStepPassed,
@@ -26,9 +26,10 @@ public record LearningRepositoryStatusResponse(
             Process process,
             Branch branch
     ) {
-        String currentStep = process == null ? null : process.getCurrentStep();
-        String lastStep = String.format("step%02d", repository.getProject().getMaxStep());
-        boolean completed = branch != null && branch.isSuccess() && lastStep.equals(currentStep);
+        Long currentStep = process == null ? null : process.getCurrentStep();
+        boolean completed = branch != null && branch.isSuccess()
+                && currentStep != null
+                && currentStep.equals((long) repository.getProject().getMaxStep());
         return new LearningRepositoryStatusResponse(
                 repository.getId(),
                 repository.getProject().getId(),
