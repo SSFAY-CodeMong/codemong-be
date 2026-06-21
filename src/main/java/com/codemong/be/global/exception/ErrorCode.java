@@ -24,6 +24,10 @@ public enum ErrorCode {
     //OAuth
     OAUTH_LOGIN_FAILED(HttpStatus.UNAUTHORIZED, "OAuth 로그인 처리에 실패하였습니다.", "40105"),
 
+    //User
+    USER_EMAIL_REQUIRED(HttpStatus.BAD_REQUEST, "메일 발송을 받으려면 이메일을 입력해야 합니다.", "40020"),
+    INVALID_EMAIL(HttpStatus.BAD_REQUEST, "이메일 형식이 올바르지 않습니다.", "40021"),
+
     //Project
     PROJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "프로젝트를 찾을 수 없습니다.", "40401"),
 

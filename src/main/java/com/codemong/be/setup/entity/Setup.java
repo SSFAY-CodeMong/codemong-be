@@ -34,8 +34,8 @@ public class Setup {
     @JoinColumn(name = "project_id", nullable = false)
     private Project project;
 
-    @Column(nullable = false, length = 150)
-    private String step;
+    @Column(nullable = false)
+    private Long step;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
@@ -53,7 +53,7 @@ public class Setup {
     )
     private LocalDateTime createdAt;
 
-    public Setup(Project project, String step, ProjectType type, String sha) {
+    public Setup(Project project, Long step, ProjectType type, String sha) {
         this.project = project;
         this.step = step;
         this.type = type;

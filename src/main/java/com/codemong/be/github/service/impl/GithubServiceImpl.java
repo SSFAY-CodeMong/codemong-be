@@ -229,7 +229,7 @@ public class GithubServiceImpl implements GithubService {
 
         try {
             String nextAnswerStepId = resolveNextStepId(currentBranch, request, projectId, track);
-            String nextStep = extractStepPrefix(nextAnswerStepId);
+            Long nextStep = extractStepNumber(nextAnswerStepId);
             String nextBranchName = buildBranchName(repository.getProject().getName(), nextStep);
             String decryptToken = kmsService.decrypt(repository.getUser().getGithubToken());
             GitHub gitHub = new GitHubBuilder().withOAuthToken(decryptToken).build();
@@ -288,7 +288,7 @@ public class GithubServiceImpl implements GithubService {
         ProjectType track = resolveTrack(project, request);
         String projectId = normalizeRepositoryName(project.getName());
         String answerStepId = resolveStepId(request, projectId, track);
-        String startStep = extractStepPrefix(answerStepId);
+        Long startStep = extractStepNumber(answerStepId);
         String branchName = buildBranchName(project.getName(), startStep);
 
 
@@ -471,8 +471,8 @@ public class GithubServiceImpl implements GithubService {
             return request.getStepId();
         }
 
-        int nextStepNumber = Integer.parseInt(currentBranch.getStep().substring(4, 6)) + 1;
-        return findAnswerStepId(projectId, track, formatStep((long) nextStepNumber));
+        Long nextStepNumber = currentBranch.getStep() + 1;
+        return findAnswerStepId(projectId, track, formatStep(nextStepNumber));
     }
 
     private ProjectType resolveTrack(Project project, RepositoryInitRequest request) {
@@ -508,8 +508,8 @@ public class GithubServiceImpl implements GithubService {
         return (track == ProjectType.BE ? "backend" : "frontend") + "/" + projectId;
     }
 
-    private String buildBranchName(String projectName, String step) {
-        return normalizeRepositoryName(projectName) + "-" + extractStepPrefix(step);
+    private String buildBranchName(String projectName, Long step) {
+        return normalizeRepositoryName(projectName) + "-" + formatStep(step);
     }
 
     static String extractStepPrefix(String stepId) {
@@ -517,6 +517,14 @@ public class GithubServiceImpl implements GithubService {
             return stepId.substring(0, 6);
         }
         return stepId;
+    }
+
+    static Long extractStepNumber(String stepId) {
+        String stepPrefix = extractStepPrefix(stepId);
+        if (stepPrefix == null || !stepPrefix.matches("^step\\d{2}$")) {
+            throw new CustomException(ErrorCode.INVALID_REPOSITORY_REQUEST);
+        }
+        return Long.parseLong(stepPrefix.substring(4, 6));
     }
 
     private void validateRepositoryInitRequest(RepositoryInitRequest request) {
