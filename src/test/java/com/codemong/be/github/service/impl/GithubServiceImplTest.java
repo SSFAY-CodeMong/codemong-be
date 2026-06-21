@@ -55,4 +55,12 @@ class GithubServiceImplTest {
         assertThat(GithubServiceImpl.extractStepPrefix("step03"))
                 .isEqualTo("step03");
     }
+
+    @Test
+    void extractStepNumberRemovesStepPrefixAndFolderSuffix() {
+        assertThat(GithubServiceImpl.extractStepNumber("step02-board-listing"))
+                .isEqualTo(2L);
+        assertThat(GithubServiceImpl.extractStepNumber("step03"))
+                .isEqualTo(3L);
+    }
 }
