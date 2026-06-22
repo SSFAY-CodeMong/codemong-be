@@ -7,12 +7,7 @@ target/
 .idea/
 *.iml
 
-src/main/resources/application-*.yml
-
 .gitmessage.txt
 .env
-src/main/resources/application.yml
-*.yml
-src/main/resources/mail-contents-local.sql
 
-!.github/workflows/*.yml
+src/main/resources/mail-contents-local.sql
