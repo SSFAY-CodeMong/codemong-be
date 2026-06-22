@@ -580,7 +580,7 @@ public class GithubServiceImpl implements GithubService {
                 }
 
                 String filePath = removeArchiveRoot(entry.getName());
-                if (!checkContentPath(filePath, type) || !isCodeFile(filePath) || entry.getSize() > MAX_CODE_FILE_BYTES) {
+                if (isIgnoredPath(filePath) || !checkContentPath(filePath, type) || !isCodeFile(filePath) || entry.getSize() > MAX_CODE_FILE_BYTES) {
                     continue;
                 }
 
@@ -626,6 +626,15 @@ public class GithubServiceImpl implements GithubService {
     static boolean checkContentPath(String path, ProjectType type) {
         String filter = (ProjectType.BE.equals(type)) ? "frontend" : "src";
         return !path.equals(filter) && !path.startsWith(filter + "/");
+    }
+
+    private boolean isIgnoredPath(String path) {
+        return path.startsWith(".gradle/")
+                || path.startsWith(".idea/")
+                || path.startsWith("build/")
+                || path.startsWith("out/")
+                || path.startsWith("target/")
+                || path.startsWith("node_modules/");
     }
 
     private boolean isCodeFile(String path) {
