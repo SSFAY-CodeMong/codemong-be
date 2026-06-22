@@ -22,6 +22,7 @@ public class Report {
     @JoinColumn(name = "repository_id", nullable = false)
     private GithubRepository githubRepository;
 
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
     private int score;

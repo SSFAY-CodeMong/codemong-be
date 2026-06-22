@@ -17,7 +17,7 @@ public interface GithubService {
     Map<String, String> getBranchContents(Long repositoryId, Long step, Long userId);
 
 
-    Boolean validateRepoOwner(Long repositoryId, Long userId);
+    void validateRepoOwner(Long repositoryId, Long userId);
     Boolean validateIsSuccess(Long repositoryId);
     Branch createNextStepBranch(Long repositoryId, Long userId, RepositoryInitRequest request);
 }

@@ -167,6 +167,9 @@ public class GithubServiceImpl implements GithubService {
                 .orElseThrow(()-> new RuntimeException("유저를 찾을 수 없습니다."));
         GithubRepository githubRepository = githubRepositoryRepository.findById(repositoryId)
                 .orElseThrow(()-> new RuntimeException("레포지토리를 찾을 수 없습니다."));
+
+        validateRepoOwner(repositoryId, userId);
+
         ProjectType type = githubRepository.getProject().getType();
         String repoName = githubRepository.getName();
         String branchName = branchRepository.findTopByRepository_IdOrderByCreatedAtDesc(repositoryId)
@@ -187,15 +190,13 @@ public class GithubServiceImpl implements GithubService {
     }
 
     @Override
-    public Boolean validateRepoOwner(Long repositoryId, Long userId) {
+    public void validateRepoOwner(Long repositoryId, Long userId) {
         GithubRepository curRepo = githubRepositoryRepository.findGithubRepositoryById(repositoryId)
                 .orElseThrow(() -> new CustomException(ErrorCode.REPOSITORY_NOT_FOUND));
 
         if (!curRepo.getUser().getId().equals(userId)) {
             throw new CustomException(ErrorCode.REPOSITORY_ACCESS_DENIED);
         }
-
-        return true;
     }
 
     @Override
@@ -579,7 +580,7 @@ public class GithubServiceImpl implements GithubService {
                 }
 
                 String filePath = removeArchiveRoot(entry.getName());
-                if (!checkContentPath(filePath, type) || !isCodeFile(filePath) || entry.getSize() > MAX_CODE_FILE_BYTES) {
+                if (isIgnoredPath(filePath) || !checkContentPath(filePath, type) || !isCodeFile(filePath) || entry.getSize() > MAX_CODE_FILE_BYTES) {
                     continue;
                 }
 
@@ -625,6 +626,15 @@ public class GithubServiceImpl implements GithubService {
     static boolean checkContentPath(String path, ProjectType type) {
         String filter = (ProjectType.BE.equals(type)) ? "frontend" : "src";
         return !path.equals(filter) && !path.startsWith(filter + "/");
+    }
+
+    private boolean isIgnoredPath(String path) {
+        return path.startsWith(".gradle/")
+                || path.startsWith(".idea/")
+                || path.startsWith("build/")
+                || path.startsWith("out/")
+                || path.startsWith("target/")
+                || path.startsWith("node_modules/");
     }
 
     private boolean isCodeFile(String path) {

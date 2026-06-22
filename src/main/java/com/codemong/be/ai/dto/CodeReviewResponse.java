@@ -6,6 +6,7 @@ public record CodeReviewResponse(
         boolean passed,
         List<String> failedTests,
         List<FailedTestResponse> failedTestDetails,
-        String content
+        String content,
+        boolean isSaved
 ) {
 }

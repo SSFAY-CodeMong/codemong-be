@@ -6,6 +6,7 @@ import com.codemong.be.ai.dto.UserQuestionRequest;
 import com.codemong.be.ai.dto.UserQuestionResponse;
 import com.codemong.be.branch.entity.Branch;
 import com.codemong.be.branch.repository.BranchRepository;
+import com.codemong.be.chathistory.service.ChatHistoryService;
 import com.codemong.be.codecheck.dto.CodeCheckResult;
 import com.codemong.be.codecheck.service.CodeCheckService;
 import com.codemong.be.feedback.service.FeedbackService;
@@ -13,12 +14,12 @@ import com.codemong.be.github.service.GithubService;
 import com.codemong.be.project.entity.TestCode;
 import com.codemong.be.project.repository.TestCodeRepository;
 import com.codemong.be.rag.service.RAGService;
+import com.codemong.be.report.service.ReportService;
 import com.codemong.be.repository.entity.GithubRepository;
 import com.codemong.be.repository.repository.GithubRepositoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -36,17 +37,14 @@ public class AIService {
     private final BranchRepository branchRepository;
     private final GithubRepositoryRepository githubRepositoryRepository;
     private final RAGService ragService;
-    private final FeedbackService feedbackService;
     private final ChatClient chatClient;
     private final TestCodeRepository testCodeRepository;
+    private final ChatHistoryService chatHistoryService;
+    private final FeedbackService feedbackService;
+    private final ReportService reportService;
 
 
     public CodeReviewResponse codeReview(Long repositoryId, Long step, Long userId) {
-        // 0. 요청 사용자가 레포지토리의 주인인지 확인
-        if(!isOwner(userId, repositoryId)){
-            throw new RuntimeException("레포지토리 소유자만이 검사하기를 요청할 수 있습니다.");
-        }
-
         // 1. 사용자의 코드 & *프로젝트 스텝별 설명 가져오기
         long start = System.nanoTime();
         Map<String, String> contents = githubService.getBranchContents(repositoryId, step, userId);
@@ -78,24 +76,20 @@ public class AIService {
                 - 계층 간 의존성 방향, 결합도, 응집도
                 - 객체지향 설계와 SOLID 원칙
                 - 예외 처리, 입력 검증, 트랜잭션 처리
-                - 보안, 성능, 테스트 가능성
         
                 반드시 제공된 코드에 근거해서 판단하고, 확인할 수 없는 내용은 추측하지 않는다.
                 문제점은 가능한 한 파일 경로, 클래스명, 메서드명을 함께 언급한다.
-                단순한 지적이 아니라 사용자가 바로 수정할 수 있는 구체적인 개선 방향을 제시한다.
+                단순한 지적이 아니라 사용자가 바로 수정할 수 있는 개선 방향을 제시한다.
                 응답은 한국어로 작성하고, 초보 백엔드 개발자도 이해할 수 있게 설명한다.
         
-                출력 형식은 아래를 따른다.
+                출력 형식 Markdown 형식이며, 내용은 아래를 따른다. 최종 점수는 백점 만점으로 계산하여 제시한다.
         
                 1. 전체 요약
                 2. 잘한 점
                 3. 주요 문제점
-                4. 설계/아키텍처 개선점
-                5. Spring/JPA 관련 개선점
-                6. 보안/예외 처리 개선점
-                7. 우선순위별 개선 제안
-                8. 최종 점수와 총평
-            """;;
+                4. 개선 제안
+                5. 최종 점수와 총평
+            """;
 
         String userPrompt = """
                 [USER_PROMPT]
@@ -114,7 +108,6 @@ public class AIService {
                 * 예외 처리와 검증 로직이 충분한지
                 * 트랜잭션 처리가 필요한 곳에 적용되어 있는지
                 * 보안상 위험한 부분이 있는지
-                * 테스트하기 어려운 구조가 있는지
                 * 더 좋은 Spring Boot 코드로 개선할 수 있는 부분이 있는지
                 
                 문제점을 말할 때는 가능한 한 파일 경로와 클래스명을 함께 언급해주세요.
@@ -130,50 +123,68 @@ public class AIService {
         String answer = chatClient.prompt()
                 .system(systemPrompt)
                 .user(userPrompt)
-                .options(OpenAiChatOptions.builder()
-                    .temperature(1.0)
-                    .maxCompletionTokens(4000)
-                    .reasoningEffort("low")
-                    .build())
+//                .options(OpenAiChatOptions.builder()
+//                    .maxCompletionTokens(4000)
+//                    .reasoningEffort("low")
+//                    .build())
                 .call()
                 .content();
 
         log.debug("[ChatClient Call] ChatClient Call took {} ms", elapsedMs(start));
-        log.info(" review answer length :: {}", answer == null ? -1 : answer.length());
 
+        String feedbackContent = parseFinalReview(answer);
+
+        // step 수정시 수정할 부분
+        Branch curBranch = branchRepository.findTopByRepository_IdOrderByCreatedAtDesc(repositoryId)
+                .orElseThrow(()-> new RuntimeException("TODO : 해당 브랜치가 없습니다."));
+
+        feedbackService.save(curBranch, feedbackContent);
+
+        boolean isSaved = false;
 
         // 4. LLM에 응답 대기 시간 동안 추가 질의 시 사용할 RAG를 위해 vectorDB 갱신
         start = System.nanoTime();
-        ragService.save(userId, repositoryId, contents);
+        try {
+            ragService.save(userId, repositoryId, contents);
+            isSaved = true;
+        }catch (Exception e){
+            log.error("RAG 저장 실패", e);
+        }
         log.debug("[RAG Save] RAG Save took {} ms", elapsedMs(start));
-        log.info(" review asnwer test :: {}", answer);
         // 5. LLM 응답 반환하기
         List<FailedTestResponse> failedTestDetails = resolveFailedTestDetails(
                 repositoryId,
                 step,
                 codeCheckResult.failedTests()
         );
-        return new CodeReviewResponse(testPassed, codeCheckResult.failedTests(), failedTestDetails, answer);
+
+        // 최종 스텝 && isSuccess => report 작성 비동기 처리
+        Long curStep = curBranch.getStep();
+        GithubRepository githubRepository = githubRepositoryRepository.findById(repositoryId)
+                .orElseThrow(()-> new RuntimeException("TODO : 레포지토리를 찾을 수 없습니다."));
+        int maxStep = githubRepository.getProject().getMaxStep();
+        if(testPassed && curStep.equals((long) maxStep)){
+            reportService.getReport(repositoryId, userId);
+        }
+
+        return new CodeReviewResponse(testPassed, codeCheckResult.failedTests(), failedTestDetails, answer, isSaved);
     }
 
 
     public UserQuestionResponse userQuestion(UserQuestionRequest userQuestionRequest, Long repositoryId, Long userId) {
-        // 0. 요청 사용자가 레포지토리의 주인인지 확인
-        if(!isOwner(userId, repositoryId)){
-            throw new RuntimeException("레포지토리 소유자만이 검사하기를 요청할 수 있습니다.");
-        }
-
         // 1. 사용자의 질의와 관련된 코드들, 사용자의 이전 대화기록 수집
         String question = userQuestionRequest.question();
         String context = ragService.searchSimilarCode(question, userId, repositoryId);
         Branch curBranch = branchRepository.findTopByRepository_IdOrderByCreatedAtDesc(repositoryId)
                 .orElseThrow(()-> new RuntimeException("TODO : 해당 브랜치가 없습니다."));
         Long branchId = curBranch.getId();
-        String feedbackSummary = feedbackService.getLatestFeedback(branchId);
+        String feedbackSummary = chatHistoryService.getLatestChatHistory(branchId);
 
         // 2. LLM에 질의 하기
         String systemPrompt = """
             너는 Java/Spring 코드 설명과 코드 리뷰를 도와주는 백엔드 멘토다.
+            
+            Java/Spring/html/css/js 등 웹 프로그래밍과 관련되지 않은 질문은 답변하지마.
             
             출력은 반드시 아래 두 구역으로 나눈다.
             
@@ -182,7 +193,6 @@ public class AIService {
             - 한국어로 답변한다.
             - 핵심 근거는 최대 3개 bullet로 설명한다.
             - 코드 예시는 꼭 필요할 때만 제공한다.
-            - 250토큰 이내로 작성한다.
             
             [UPDATED_MEMORY_SUMMARY]
             - 사용자에게 보여주지 않고 DB에 저장할 내부 누적 요약이다.
@@ -191,7 +201,6 @@ public class AIService {
             - 관련 클래스명, 메서드명, 사용자의 관심사를 포함한다.
             - 컨텍스트에 없는 사실은 추가하지 않는다.
             - 2~3문장 이내로 작성한다.
-            - 100토큰 이내로 작성한다.
             """;
 
         String userPrompt = """
@@ -221,16 +230,10 @@ public class AIService {
         // 3. 피드백 내용 저장하기(요약)
         String userAnswer = parsing(answer, "user");
         String updatedSummary = parsing(answer, "summary");
-        feedbackService.save(curBranch, updatedSummary);
+        chatHistoryService.save(curBranch, updatedSummary);
 
         // 4. LLM 응답 반환하기
         return new UserQuestionResponse(userAnswer);
-    }
-
-    private boolean isOwner(Long userId, Long repositoryId){
-        GithubRepository repo = githubRepositoryRepository.findById(repositoryId)
-                .orElseThrow(()-> new RuntimeException("레포지토리를 찾을 수 없습니다."));
-        return userId.equals(repo.getUser().getId());
     }
 
     private String parsing(String answer, String type){
@@ -369,5 +372,22 @@ public class AIService {
 
     private long elapsedMs(long startNanoTime) {
         return (System.nanoTime() - startNanoTime) / 1_000_000;
+    }
+
+    private String parseFinalReview(String answer) {
+        if (answer == null || answer.isBlank()) {
+            return "";
+        }
+
+        String regex = "(?ms)^\\s*5\\.\\s*최종 점수와 총평\\s*\\R?(.*)\\z";
+
+        Pattern pattern = Pattern.compile(regex);
+        Matcher matcher = pattern.matcher(answer);
+
+        if (!matcher.find()) {
+            return "";
+        }
+
+        return matcher.group(1).strip();
     }
 }

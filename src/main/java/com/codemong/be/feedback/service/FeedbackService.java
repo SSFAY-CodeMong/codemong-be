@@ -7,8 +7,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -16,15 +14,9 @@ import java.util.regex.Pattern;
 public class FeedbackService {
     private final FeedbackRepository feedbackRepository;
 
-    public String getLatestFeedback(Long branchId) {
-        return feedbackRepository.findFirstByBranch_IdOrderByCreatedAtDesc(branchId)
-                .map(Feedback::getContent)
-                .orElse("N/A");
-    }
-
-    public void save(Branch curBranch, String updatedSummary) {
-        log.debug("updatedSummary : \n{}", updatedSummary);
-        Feedback feedback = new Feedback(curBranch, updatedSummary);
+    public void save(Branch curBranch, String content) {
+        log.debug("feedback : \n{}", content);
+        Feedback feedback = new Feedback(curBranch, content);
 
         feedbackRepository.save(feedback);
     }
