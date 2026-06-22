@@ -22,10 +22,7 @@ public class Project {
     private String name;
 
     @Enumerated(EnumType.STRING)
-    @Column(
-            nullable = false,
-            columnDefinition = "ENUM('FE', 'BE')"
-    )
+    @Column(nullable = false, length = 10)
     private ProjectType type;
 
     @Column(nullable = false, columnDefinition = "TEXT")

@@ -8,6 +8,6 @@ import java.util.Optional;
 
 public interface MailQuestionRepository extends JpaRepository<MailQuestion, Long> {
 
-    @Query(value = "select * from mail_questions order by rand() limit 1", nativeQuery = true)
+    @Query(value = "select * from mail_questions order by random() limit 1", nativeQuery = true)
     Optional<MailQuestion> findRandomQuestion();
 }

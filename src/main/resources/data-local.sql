@@ -1,15 +1,12 @@
 INSERT INTO user_roles (id, name)
-SELECT 1, 'USER'
-FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM user_roles WHERE id = 1)
-UNION ALL
-SELECT 2, 'ADMIN'
-FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM user_roles WHERE id = 2);
+VALUES
+    (1, 'USER'),
+    (2, 'ADMIN')
+ON CONFLICT (id) DO UPDATE
+SET name = EXCLUDED.name;
 
 INSERT INTO projects (description, name, type, max_step)
 SELECT '게시판 CRUD, 댓글, 검증/예외 처리를 단계별 hidden test로 구현하는 Spring Boot 백엔드 프로젝트입니다.', 'mmcafe', 'BE', 5
-FROM DUAL
 WHERE NOT EXISTS (
     SELECT 1 FROM projects WHERE name = 'mmcafe'
 );
@@ -39,7 +36,8 @@ JOIN (
     SELECT 5, '요청 값 검증과 공통 예외 응답을 구현합니다. 게시글 title/content와 댓글 content가 비어 있으면 400 Bad Request를 반환해야 하며, 존재하지 않는 게시글/댓글 요청은 404 Not Found와 status 값을 포함한 JSON 오류 응답을 반환해야 합니다.'
 ) s ON TRUE
 WHERE p.name = 'mmcafe'
-ON DUPLICATE KEY UPDATE content = VALUES(content);
+ON CONFLICT ON CONSTRAINT uk_steps_project_step DO UPDATE
+SET content = EXCLUDED.content;
 
 INSERT INTO testcodes (project_id, step, method_name, description)
 SELECT p.id, t.step, t.method_name, t.description
@@ -74,7 +72,8 @@ JOIN (
            '게시글 title/content 또는 댓글 content가 빈 값이면 400 Bad Request가 나와야 하고, 없는 게시글/댓글 요청은 404와 status 값을 포함한 JSON 오류 응답을 반환해야 합니다.'
 ) t ON TRUE
 WHERE p.name = 'mmcafe'
-ON DUPLICATE KEY UPDATE description = VALUES(description);
+ON CONFLICT ON CONSTRAINT uk_testcodes_project_step_method DO UPDATE
+SET description = EXCLUDED.description;
 
 INSERT INTO mail_categories (name)
 SELECT category.name
@@ -93,7 +92,7 @@ WHERE NOT EXISTS (
 
 INSERT INTO mail_questions
     (category_id, title, content, model_answer, difficulty, question_type, created_at)
-SELECT c.id, q.title, q.content, q.model_answer, q.difficulty, q.question_type, NOW(6)
+SELECT c.id, q.title, q.content, q.model_answer, q.difficulty, q.question_type, CURRENT_TIMESTAMP
 FROM mail_categories c
 JOIN (
     SELECT 'Spring' AS category_name,
@@ -178,7 +177,7 @@ SELECT c.id,
        q.model_answer,
        q.difficulty,
        q.question_type,
-       NOW(6)
+       CURRENT_TIMESTAMP
 FROM mail_categories c
 JOIN (
     SELECT 'JavaScript' AS category_name,

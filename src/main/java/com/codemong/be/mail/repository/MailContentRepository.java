@@ -13,6 +13,6 @@ public interface MailContentRepository extends JpaRepository<MailContent, Long> 
 
     Optional<MailContent> findByTrackAndSourceFile(String track, String sourceFile);
 
-    @Query(value = "select * from mail_contents order by rand() limit 1", nativeQuery = true)
+    @Query(value = "select * from mail_contents order by random() limit 1", nativeQuery = true)
     Optional<MailContent> findRandom();
 }
