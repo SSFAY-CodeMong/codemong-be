@@ -14,6 +14,7 @@ import com.codemong.be.github.service.GithubService;
 import com.codemong.be.project.entity.TestCode;
 import com.codemong.be.project.repository.TestCodeRepository;
 import com.codemong.be.rag.service.RAGService;
+import com.codemong.be.report.service.ReportService;
 import com.codemong.be.repository.entity.GithubRepository;
 import com.codemong.be.repository.repository.GithubRepositoryRepository;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +41,7 @@ public class AIService {
     private final TestCodeRepository testCodeRepository;
     private final ChatHistoryService chatHistoryService;
     private final FeedbackService feedbackService;
+    private final ReportService reportService;
 
 
     public CodeReviewResponse codeReview(Long repositoryId, Long step, Long userId) {
@@ -80,7 +82,7 @@ public class AIService {
                 단순한 지적이 아니라 사용자가 바로 수정할 수 있는 개선 방향을 제시한다.
                 응답은 한국어로 작성하고, 초보 백엔드 개발자도 이해할 수 있게 설명한다.
         
-                출력 형식 Markdown 형식이며, 내용은 아래를 따른다.
+                출력 형식 Markdown 형식이며, 내용은 아래를 따른다. 최종 점수는 백점 만점으로 계산하여 제시한다.
         
                 1. 전체 요약
                 2. 잘한 점
@@ -155,6 +157,16 @@ public class AIService {
                 step,
                 codeCheckResult.failedTests()
         );
+
+        // 최종 스텝 && isSuccess => report 작성 비동기 처리
+        Long curStep = curBranch.getStep();
+        GithubRepository githubRepository = githubRepositoryRepository.findById(repositoryId)
+                .orElseThrow(()-> new RuntimeException("TODO : 레포지토리를 찾을 수 없습니다."));
+        int maxStep = githubRepository.getProject().getMaxStep();
+        if(testPassed && curStep.equals((long) maxStep)){
+            reportService.getReport(repositoryId, userId);
+        }
+
         return new CodeReviewResponse(testPassed, codeCheckResult.failedTests(), failedTestDetails, answer, isSaved);
     }
 
