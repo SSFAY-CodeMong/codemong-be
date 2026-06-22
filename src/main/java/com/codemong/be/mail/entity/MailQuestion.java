@@ -38,7 +38,7 @@ public class MailQuestion {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
-    @Column(name = "code_template", columnDefinition = "LONGTEXT")
+    @Column(name = "code_template", columnDefinition = "TEXT")
     private String codeTemplate;
 
     @Column(name = "model_answer", nullable = false, columnDefinition = "TEXT")
