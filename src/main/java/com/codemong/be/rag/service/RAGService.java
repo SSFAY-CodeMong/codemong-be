@@ -48,6 +48,10 @@ public class RAGService {
             String filePath = entry.getKey();
             String content = entry.getValue();
 
+            if (content == null || content.isBlank()) {
+                continue;
+            }
+
             if (isJavaFile(filePath)) {
                 documents.addAll(splitJavaFile(filePath, content, userId, repositoryId, version));
             } else {
