@@ -11,6 +11,7 @@ import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.UnsupportedJwtException;
 import io.jsonwebtoken.security.SecurityException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,7 @@ import java.util.concurrent.TimeUnit;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AuthService {
     private final JwtProvider jwtProvider;
     private final RedisTemplate<String, String> redisTemplate;
@@ -51,6 +53,7 @@ public class AuthService {
                 TimeUnit.DAYS
         );
 
+        log.debug("----------reissue------------");
         return new TokenInfo(newAccessToken, newRefreshToken);
     }
 
