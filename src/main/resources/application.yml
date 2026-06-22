@@ -1,0 +1,109 @@
+spring:
+  config:
+    import: optional:file:.env[.properties]
+  application:
+    name: codemong-be
+  security:
+    oauth2:
+      client:
+        registration:
+          github:
+            client-id: ${CLIENT_ID}
+            client-secret: ${CLIENT_SECRET}
+            scope:
+              - read:user
+              - user:email
+              - repo
+              - workflow
+              - delete_repo
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: jdbc:postgresql://${AWS_RDS_ENDPOINT}:${AWS_RDS_PORT}/codemong_db?sslmode=require
+    username: ${AWS_RDS_USERNAME}
+    password: ${AWS_RDS_PASSWORD}
+  jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    defer-datasource-initialization: true
+  sql:
+    init:
+      mode: never
+      data-locations: classpath:data-local.sql,classpath:mail-contents-local.sql
+      encoding: UTF-8
+  batch:
+    jdbc:
+      initialize-schema: always
+    job:
+      enabled: false
+  mail:
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          ssl:
+            trust: smtp.gmail.com
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+      password: ${REDIS_PW}
+      ssl:
+        enabled: ${REDIS_SSL}
+      username: ${REDIS_USER}
+  ai:
+    openai:
+      api-key: ${GMS_KEY}
+      base-url: https://gms.ssafy.io/gmsapi/api.openai.com
+      chat:
+        options:
+          model: gpt-5-nano
+          temperature: 1
+          max-completion-tokens: 4000
+      embedding:
+        options:
+          model: text-embedding-3-small
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.vectorstore.pgvector.autoconfigure.PgVectorStoreAutoConfiguration
+github:
+  token: ${GITHUB_TOKEN}
+  answer:
+    repository: ${GITHUB_ANSWER_REPOSITORY:dbstjdqls14/codemong-answer-mmcafe}
+    token: ${GITHUB_ANSWER_TOKEN:}
+
+jwt:
+  secret: ${JWT_SECRET}
+
+aws:
+  region: ${AWS_REGION:ap-northeast-2}
+  credentials:
+    access-key-id: ${AWS_ACCESS_KEY_ID:}
+    secret-access-key: ${AWS_SECRET_ACCESS_KEY:}
+  kms:
+    enabled: ${AWS_KMS_ENABLED:false}
+    key-id: ${KMS_KEY_ID:}
+
+codemong:
+  pgvector:
+    datasource:
+      url: jdbc:postgresql://${AWS_RDS_ENDPOINT}:${AWS_RDS_PORT}/codemong_db?sslmode=require
+      username: ${AWS_RDS_USERNAME}
+      password: ${AWS_RDS_PASSWORD}
+      driver-class-name: org.postgresql.Driver
+  frontend:
+    redirect-uri: https://www.codemong.com
+    base-url: https://www.codemong.com
+  mail:
+    from: ${MAIL_FROM:}
+    random-send-cron: "0 */10 * * * *"
+logging:
+  level:
+    com.codemong.be: INFO
