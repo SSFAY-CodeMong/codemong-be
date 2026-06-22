@@ -23,18 +23,24 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         String accessToken = resolveToken(request);
-        if(StringUtils.hasText(accessToken) && jwtProvider.validateToken(accessToken)){
-            String isBlackList = redisTemplate.opsForValue().get("BL:" + accessToken);
-            if(isBlackList == null){
-                Authentication authentication = jwtProvider.getAuthentication(accessToken);
 
-                SecurityContextHolder.getContext().setAuthentication(authentication);
-                log.info("정상적인 엑세스 토큰입니다. 인증을 허용합니다.");
-            }else{
-                log.warn("🚨 로그아웃(블랙리스트) 처리된 토큰의 접근입니다!");
+        if (StringUtils.hasText(accessToken)) {
+            if (!jwtProvider.validateToken(accessToken)) {
+                SecurityContextHolder.clearContext();
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "유효하지 않거나 만료된 토큰입니다.");
+                return;
+            }
+
+            String isBlackList = redisTemplate.opsForValue().get("BL:" + accessToken);
+            if (isBlackList != null) {
+                SecurityContextHolder.clearContext();
                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "이미 로그아웃된 토큰입니다.");
                 return;
             }
+
+            log.info("정상적인 엑세스 토큰입니다. 인증을 허용합니다.");
+            Authentication authentication = jwtProvider.getAuthentication(accessToken);
+            SecurityContextHolder.getContext().setAuthentication(authentication);
         }
 
         filterChain.doFilter(request, response);
