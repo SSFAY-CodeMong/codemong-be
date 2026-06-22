@@ -14,3 +14,5 @@ src/main/resources/application-*.yml
 src/main/resources/application.yml
 *.yml
 src/main/resources/mail-contents-local.sql
+
+!.github/workflows/*.yml
