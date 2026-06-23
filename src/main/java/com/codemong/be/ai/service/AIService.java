@@ -22,6 +22,7 @@ import com.codemong.be.repository.repository.GithubRepositoryRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -92,6 +93,9 @@ public class AIService {
                 응답은 한국어로 작성하고, 초보 백엔드 개발자도 이해할 수 있게 설명한다.
         
                 출력 형식 Markdown 형식이며, 내용은 아래를 따른다. 최종 점수는 백점 만점으로 계산하여 제시한다.
+                 코드, 명령어, 설정 파일, 에러 로그, diff, JSON, XML, HTML은 반드시 fenced code block으로 감싸세요.
+                 가능하면 언어명을 함께 표기하세요.
+                 여러줄의 코드인 경우 ```으로 감싸세요.
         
                 1. 전체 요약
                 2. 잘한 점
@@ -139,7 +143,6 @@ public class AIService {
                 .system(systemPrompt)
                 .user(userPrompt)
 //                .options(OpenAiChatOptions.builder()
-//                    .maxCompletionTokens(4000)
 //                    .reasoningEffort("low")
 //                    .build())
                 .call()
@@ -200,9 +203,13 @@ public class AIService {
             Java/Spring/html/css/js 등 웹 프로그래밍과 관련되지 않은 질문은 답변하지마.
             
             출력은 반드시 아래 두 구역으로 나눈다.
+            코드, 명령어, 설정 파일, 에러 로그, diff, JSON, XML, HTML은 반드시 fenced code block으로 감싸세요.
+            가능하면 언어명을 함께 표기하세요.
+            여러줄의 코드인 경우 ```으로 감싸세요.
             
             [USER_ANSWER]
             - 사용자에게 보여줄 답변이다.
+            - 응답은 MarkDown 형식으로 반환한다.
             - 한국어로 답변한다.
             - 핵심 근거는 최대 3개 bullet로 설명한다.
             - 코드 예시는 꼭 필요할 때만 제공한다.
@@ -232,9 +239,6 @@ public class AIService {
         String answer = chatClient.prompt()
                 .system(systemPrompt)
                 .user(userPrompt)
-//                .options(OpenAiChatOptions.builder()
-//                        .maxCompletionTokens(350)
-//                        .build())
                 .call()
                 .content();
         log.debug("모델: gpt-5-mini\n\n[System Prompt]\n{}\n\n[User Prompt]\n{}"
