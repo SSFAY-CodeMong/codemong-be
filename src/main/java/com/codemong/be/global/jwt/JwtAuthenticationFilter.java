@@ -23,9 +23,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         String accessToken = resolveToken(request);
-
         if (StringUtils.hasText(accessToken)) {
-            if (!jwtProvider.validateToken(accessToken)) {
+            if (!jwtProvider.validateToken(accessToken) || !jwtProvider.validateTokenType(accessToken, JwtProvider.TOKEN_TYPE_ACCESS)) {
                 SecurityContextHolder.clearContext();
                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "유효하지 않거나 만료된 토큰입니다.");
                 return;

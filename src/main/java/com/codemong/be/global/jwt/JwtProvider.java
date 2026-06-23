@@ -29,6 +29,11 @@ public class JwtProvider {
     private final Long ACCESS_TOKEN_VALIDITY = 1000L * 60 * 30;
     private final Long REFRESH_TOKEN_VALIDITY = 1000L * 60 * 60 * 24 * 14;
 
+    public static final String TOKEN_TYPE_ACCESS = "ACCESS";
+    public static final String TOKEN_TYPE_REFRESH = "REFRESH";
+
+    private static final String TOKEN_TYPE_CLAIM = "tokenType";
+
     public JwtProvider(@Value("${jwt.secret}") String secretKey){
         this.key = Keys.hmacShaKeyFor(secretKey.getBytes());
     }
@@ -39,6 +44,7 @@ public class JwtProvider {
         return Jwts.builder()
                 .setSubject(String.valueOf(userId))
                 .claim("role", roleName)
+                .claim(TOKEN_TYPE_CLAIM, TOKEN_TYPE_ACCESS)
                 .setExpiration(validity)
                 .setIssuedAt(now)
                 .signWith(key, SignatureAlgorithm.HS256)
@@ -50,6 +56,7 @@ public class JwtProvider {
         Date validity = new Date(now.getTime() + REFRESH_TOKEN_VALIDITY);
         return Jwts.builder()
                 .setSubject(String.valueOf(userId))
+                .claim(TOKEN_TYPE_CLAIM, TOKEN_TYPE_REFRESH)
                 .setExpiration(validity)
                 .setIssuedAt(now)
                 .signWith(key, SignatureAlgorithm.HS256)
@@ -109,5 +116,26 @@ public class JwtProvider {
 
         return new UsernamePasswordAuthenticationToken(userId, accessToken, authorities);
     }
+
+    public boolean validateTokenType(String token, String expectedTokenType) {
+        try {
+            Claims claims = Jwts.parserBuilder()
+                    .setSigningKey(key)
+                    .build()
+                    .parseClaimsJws(token)
+                    .getBody();
+
+            String tokenType = claims.get(TOKEN_TYPE_CLAIM, String.class);
+            return expectedTokenType.equals(tokenType);
+        } catch (SecurityException | MalformedJwtException | UnsupportedJwtException e) {
+            log.warn("유효하지 않은 JWT 토큰입니다.");
+        } catch (ExpiredJwtException e) {
+            log.warn("만료된 JWT 토큰입니다.");
+        } catch (IllegalArgumentException e) {
+            log.warn("JWT 토큰이 비어있거나 잘못되었습니다.");
+        }
+        return false;
+    }
+
 
 }

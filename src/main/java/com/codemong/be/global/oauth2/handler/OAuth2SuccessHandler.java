@@ -32,7 +32,7 @@ public class OAuth2SuccessHandler extends SimpleUrlAuthenticationSuccessHandler 
 
     @Override
     public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
-        log.info("🎉 깃허브 로그인 성공! 토큰 발급을 시작합니다.");
+        log.info("🎉 깃허브 로그인 성공! 리프레쉬 토큰 발급을 시작합니다.");
 
         CustomOAuth2User oAuth2User = (CustomOAuth2User) authentication.getPrincipal();
 

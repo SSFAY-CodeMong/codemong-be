@@ -5,8 +5,11 @@ import com.codemong.be.auth.dto.TokenInfo;
 import com.codemong.be.auth.service.AuthService;
 import com.codemong.be.global.exception.CustomException;
 import com.codemong.be.global.exception.ErrorCode;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.*;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -42,7 +45,8 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(
-            @RequestHeader(value = "Authorization", required = false) String breakingToken
+            @RequestHeader(value = "Authorization", required = false) String breakingToken,
+            HttpServletRequest request
     ){
         if (breakingToken == null || breakingToken.isBlank()) {
             throw new CustomException(ErrorCode.MISSING_TOKEN);
@@ -55,7 +59,15 @@ public class AuthController {
             throw new CustomException(ErrorCode.INVALID_AUTH_HEADER);
         }
         authService.logout(accessToken);
-        ResponseCookie responseCookie = ResponseCookie.from("refresh_token", "")
+
+        SecurityContextHolder.clearContext();
+
+        HttpSession session = request.getSession(false);
+        if (session != null) {
+            session.invalidate();
+        }
+
+        ResponseCookie refreshCookie = ResponseCookie.from("refresh_token", "")
                 .maxAge(0)
                 .httpOnly(true)
                 .secure(true)
@@ -63,8 +75,17 @@ public class AuthController {
                 .sameSite("None")
                 .build();
 
+        ResponseCookie sessionCookie = ResponseCookie.from("JSESSIONID", "")
+                .maxAge(0)
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .sameSite("None")
+                .build();
+
         return ResponseEntity.noContent()
-                .header(HttpHeaders.SET_COOKIE, responseCookie.toString())
+                .header(HttpHeaders.SET_COOKIE, refreshCookie.toString())
+                .header(HttpHeaders.SET_COOKIE, sessionCookie.toString())
                 .build();
     }
 }
