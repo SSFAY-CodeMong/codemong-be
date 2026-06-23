@@ -19,7 +19,7 @@ public class MailBatchScheduler {
     @Qualifier(MailBatchConfig.DAILY_RANDOM_MAIL_JOB_NAME)
     private final Job dailyRandomMailJob;
 
-    @Scheduled(cron = "${codemong.mail.random-send-cron:0 */10 * * * *}", zone = "Asia/Seoul")
+    @Scheduled(cron = "${codemong.mail.random-send-cron:0 0 * * * *}", zone = "Asia/Seoul")
     public void launchDailyRandomMailJob() {
         try {
             jobLauncher.run(
