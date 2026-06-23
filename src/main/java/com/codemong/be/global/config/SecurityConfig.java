@@ -4,6 +4,7 @@ import com.codemong.be.global.jwt.JwtAuthenticationFilter;
 import com.codemong.be.global.jwt.JwtProvider;
 import com.codemong.be.global.oauth2.handler.OAuth2SuccessHandler;
 import com.codemong.be.global.oauth2.service.CustomOAuth2UserService;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -55,6 +56,11 @@ public class SecurityConfig {
                                 "/v3/api-docs/**"
                         ).permitAll()
                         .anyRequest().authenticated()
+                )
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "인증이 필요합니다.");
+                        })
                 )
 
                 .oauth2Login(oauth2-> oauth2

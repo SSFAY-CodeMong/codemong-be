@@ -650,6 +650,7 @@ public class GithubServiceImpl implements GithubService {
                 || path.endsWith(".jsx")
                 || path.endsWith(".html")
                 || path.endsWith(".js")
-                || path.endsWith(".css");
+                || path.endsWith(".css")
+                || path.endsWith(".sql");
     }
 }

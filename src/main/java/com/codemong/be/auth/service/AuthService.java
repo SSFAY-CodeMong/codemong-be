@@ -28,8 +28,13 @@ public class AuthService {
     private final UserRepository userRepository;
 
     public TokenInfo reissue(String refreshToken) {
+
         if (refreshToken == null || refreshToken.isBlank()) {
             throw new CustomException(ErrorCode.MISSING_TOKEN);
+        }
+
+        if(!jwtProvider.validateToken(refreshToken) || !jwtProvider.validateTokenType(refreshToken, JwtProvider.TOKEN_TYPE_REFRESH)){
+            throw new CustomException(ErrorCode.INVALID_TOKEN);
         }
 
         Long userId = extractUserId(refreshToken);
@@ -60,6 +65,10 @@ public class AuthService {
     public void logout(String accessToken) {
         if (accessToken == null || accessToken.isBlank()) {
             throw new CustomException(ErrorCode.MISSING_TOKEN);
+        }
+
+        if(!jwtProvider.validateToken(accessToken) || !jwtProvider.validateTokenType(accessToken, JwtProvider.TOKEN_TYPE_ACCESS)){
+            throw new CustomException(ErrorCode.INVALID_TOKEN);
         }
 
         Long userId = extractUserId(accessToken);

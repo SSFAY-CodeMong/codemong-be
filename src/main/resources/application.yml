@@ -98,11 +98,11 @@ codemong:
       password: ${AWS_RDS_PASSWORD}
       driver-class-name: org.postgresql.Driver
   frontend:
-    redirect-uri: https://www.codemong.com
-    base-url: https://www.codemong.com
+    redirect-uri: http://localhost:5173/
+    base-url: http://localhost:5173
   mail:
     from: ${MAIL_FROM:}
     random-send-cron: "0 */10 * * * *"
 logging:
   level:
-    com.codemong.be: INFO
+    com.codemong.be: DEBUG
