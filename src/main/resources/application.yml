@@ -105,4 +105,4 @@ codemong:
     random-send-cron: "0 */10 * * * *"
 logging:
   level:
-    com.codemong.be: DEBUG
+    com.codemong.be: INFO
