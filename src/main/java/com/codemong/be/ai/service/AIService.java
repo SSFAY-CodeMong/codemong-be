@@ -27,6 +27,9 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -46,6 +49,7 @@ public class AIService {
     private final FeedbackService feedbackService;
     private final ReportService reportService;
     private final ProjectStepRepository projectStepRepository;
+    private final Executor aiTaskExecutor;
 
 
     public CodeReviewResponse codeReview(Long repositoryId, Long step, Long userId) {
@@ -61,21 +65,7 @@ public class AIService {
 
         log.debug("[codeReview] owner check took {} ms", elapsedMs(start));
 
-        // TODO: 2. github actions 결과 받아오기
-        start = System.nanoTime();
-        log.info("============================== actions call =============================");
-        CodeCheckResult codeCheckResult = codeCheckService.runGithubActionsCheck(repositoryId, step, userId);
-        boolean testPassed = codeCheckResult.passed();
-        if (testPassed) { // 추후, 다음 스텝 넘어가기 수행 시 기준이되는 isSuccess 변경
-            branchRepository.findTopByRepository_IdOrderByCreatedAtDesc(repositoryId)
-                    .ifPresent(branch -> {
-                        branch.markSuccess();
-                        branchRepository.save(branch);
-                    });
-        }
-        log.debug("[GithubActions] Github Actions took {} ms", elapsedMs(start));
-
-        // 3. LLM에 코드 보내기 with 부가정보(*프로젝트 스텝별 설명 등)
+        // 프롬프트 작성
         String systemPrompt = """
                 너는 Java/Spring Boot 백엔드 코드 리뷰어이자 멘토다.
         
@@ -128,18 +118,64 @@ public class AIService {
                 
             """.formatted(inputContents, stepInfo);
 
-        start = System.nanoTime();
-        String answer = chatClient.prompt()
-                .system(systemPrompt)
-                .user(userPrompt)
-//                .options(OpenAiChatOptions.builder()
-//                    .reasoningEffort("low")
-//                    .build())
-                .call()
-                .content();
+        // 2. github actions 결과 받아오기
+        long parallelStart = System.nanoTime();
+        log.info("============================== actions call =============================");
+        CompletableFuture<CodeCheckResult> codeCheckFuture =
+                CompletableFuture.supplyAsync(() -> {
+                            long taskStart = System.nanoTime();
+                            try {
+                                return codeCheckService.runGithubActionsCheck(repositoryId, step, userId);
+                            } finally {
+                                log.debug("[GithubActions] Github Actions took {} ms", elapsedMs(taskStart));
+                            }
+                        },
+                        aiTaskExecutor
+                        );
 
-        log.debug("[ChatClient Call] ChatClient Call took {} ms", elapsedMs(start));
+        CompletableFuture<String> llmFuture =
+                CompletableFuture.supplyAsync(() -> {
+                            long taskStart = System.nanoTime();
+                            try {
+                                return chatClient.prompt()
+                                        .system(systemPrompt)
+                                        .user(userPrompt)
+        //                              .options(OpenAiChatOptions.builder()
+        //                                  .reasoningEffort("low")
+        //                                  .build())
+                                        .call()
+                                        .content();
+                            } finally {
+                                log.debug("[ChatClient Call] ChatClient Call took {} ms", elapsedMs(taskStart));
+                            }
+                        },
+                        aiTaskExecutor
+                        );
 
+        try {
+            CompletableFuture.allOf(codeCheckFuture, llmFuture).join();
+        } catch (CompletionException e) {
+            log.error("[codeReview] async tasks failed after {} ms", elapsedMs(parallelStart), e);
+            Throwable cause = e.getCause() == null ? e : e.getCause();
+            if (cause instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw new RuntimeException("코드 검사 또는 LLM 리뷰 처리 중 실패했습니다.", cause);
+        }
+
+        log.debug("[codeReview] parallel tasks completed in {} ms", elapsedMs(parallelStart));
+
+        CodeCheckResult codeCheckResult = codeCheckFuture.join();
+        String answer = llmFuture.join();
+
+        boolean testPassed = codeCheckResult.passed();
+        if (testPassed) { // 추후, 다음 스텝 넘어가기 수행 시 기준이되는 isSuccess 변경
+            branchRepository.findTopByRepository_IdOrderByCreatedAtDesc(repositoryId)
+                    .ifPresent(branch -> {
+                        branch.markSuccess();
+                        branchRepository.save(branch);
+                    });
+        }
         String feedbackContent = parseFinalReview(answer);
 
         // step 수정시 수정할 부분
