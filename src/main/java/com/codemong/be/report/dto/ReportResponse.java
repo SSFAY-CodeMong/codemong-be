@@ -1,23 +1,17 @@
 package com.codemong.be.report.dto;
 
-import com.codemong.be.report.entity.Report;
+import com.codemong.be.feedback.dto.FeedbackDetail;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record ReportResponse(
         Long id,
         Long repositoryId,
+        String projectName,
         String content,
         int score,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        List<FeedbackDetail> feedbackDetails
 ) {
-    public static ReportResponse from(Report report) {
-        return new ReportResponse(
-                report.getId(),
-                report.getGithubRepository().getId(),
-                report.getContent(),
-                report.getScore(),
-                report.getCreatedAt()
-        );
-    }
 }
