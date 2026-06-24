@@ -325,3 +325,105 @@ FROM projects p
 WHERE p.name = 'jpa-lab'
     ON CONFLICT ON CONSTRAINT uk_testcodes_project_step_method DO UPDATE
                                                                       SET description = EXCLUDED.description;
+
+
+INSERT INTO projects (description, name, type, max_step, frontend_required)
+SELECT 'Spring Security 기반 URL 접근 제어, 회원가입/로그인, JWT Access Token 발급, JWT 인증 필터, Refresh Token 재발급을 단계별 hidden test로 학습하는 Spring Boot 백엔드 프로젝트입니다.',
+       'security-lab',
+       'BE',
+       4,
+       FALSE
+    WHERE NOT EXISTS (
+    SELECT 1 FROM projects WHERE name = 'security-lab'
+);
+
+UPDATE projects
+SET description = 'Spring Security 기반 URL 접근 제어, 회원가입/로그인, JWT Access Token 발급, JWT 인증 필터, Refresh Token 재발급을 단계별 hidden test로 학습하는 Spring Boot 백엔드 프로젝트입니다.',
+    type = 'BE',
+    max_step = 4,
+    frontend_required = FALSE
+WHERE name = 'security-lab';
+
+INSERT INTO steps (project_id, step, content)
+SELECT p.id, s.step, s.content
+FROM projects p
+         JOIN (
+    SELECT 1 AS step,
+           'Spring Security 설정을 통해 URL별 접근 권한을 분리합니다. GET /api/public/ping은 인증 없이 접근 가능해야 하고, GET /api/private/ping은 인증이 필요해야 하며, GET /api/admin/ping은 관리자 권한이 필요해야 합니다. 이 단계에서는 회원가입, 로그인, JWT 발급은 구현하지 않습니다.' AS content
+    UNION ALL
+    SELECT 2,
+           '회원가입과 로그인을 구현하고 로그인 성공 시 JWT Access Token을 발급합니다. POST /api/auth/signup은 User를 저장해야 하며 비밀번호는 PasswordEncoder로 암호화해야 합니다. POST /api/auth/login은 올바른 이메일과 비밀번호로 로그인하면 accessToken을 반환해야 하고, 잘못된 비밀번호는 401 Unauthorized를 반환해야 합니다. Access Token에는 사용자를 식별할 수 있는 subject 또는 userId와 type=ACCESS claim이 포함되어야 합니다.'
+    UNION ALL
+    SELECT 3,
+           'JWT 인증 필터를 구현하고 현재 인증 사용자 조회 API를 추가합니다. Authorization 헤더의 Bearer Access Token을 읽어 유효성을 검증한 뒤 SecurityContext에 인증 정보를 저장해야 합니다. GET /api/me는 인증된 사용자만 접근 가능해야 하며 현재 사용자의 email과 nickname을 반환해야 합니다. 토큰 없음, 잘못된 토큰, 만료된 토큰은 401 Unauthorized를 반환해야 합니다.'
+    UNION ALL
+    SELECT 4,
+           'Refresh Token 발급과 Access Token 재발급을 구현합니다. 로그인 성공 시 accessToken과 refreshToken을 모두 반환해야 하며 Access Token에는 type=ACCESS, Refresh Token에는 type=REFRESH claim이 포함되어야 합니다. POST /api/auth/refresh는 유효한 Refresh Token으로 새 Access Token을 발급해야 합니다. Access Token으로 refresh API를 호출하거나 Refresh Token으로 보호 API를 호출하면 실패해야 합니다.'
+) s ON TRUE
+WHERE p.name = 'security-lab'
+    ON CONFLICT ON CONSTRAINT uk_steps_project_step DO UPDATE
+                                                           SET content = EXCLUDED.content;
+
+INSERT INTO testcodes (project_id, step, method_name, description)
+SELECT p.id, t.step, t.method_name, t.description
+FROM projects p
+         JOIN (
+    SELECT 1 AS step,
+           'publicPingIsOpenWithoutAuthentication' AS method_name,
+           '토큰 없이 GET /api/public/ping을 호출했을 때 200 OK와 public pong 응답이 반환되어야 합니다.' AS description
+    UNION ALL
+    SELECT 1,
+           'privatePingRequiresAuthentication',
+           '토큰 없이 GET /api/private/ping을 호출했을 때 401 Unauthorized가 반환되어야 합니다.'
+    UNION ALL
+    SELECT 1,
+           'adminPingRequiresAdminRole',
+           'GET /api/admin/ping은 관리자 권한이 필요해야 합니다. 인증 없이 호출하면 4xx 응답이어야 하며 ADMIN 권한 사용자는 접근할 수 있어야 합니다.'
+    UNION ALL
+    SELECT 2,
+           'signupStoresUserWithEncodedPassword',
+           'POST /api/auth/signup 호출 시 User가 저장되어야 하며 비밀번호는 평문이 아니라 PasswordEncoder와 매칭되는 해시로 저장되어야 합니다.'
+    UNION ALL
+    SELECT 2,
+           'loginReturnsAccessTokenWithSubjectAndType',
+           '회원가입 후 POST /api/auth/login을 호출하면 accessToken이 반환되어야 합니다. Access Token은 테스트용 고정 Secret으로 파싱 가능해야 하며 subject와 type=ACCESS claim을 포함해야 합니다.'
+    UNION ALL
+    SELECT 2,
+           'loginWithWrongPasswordReturnsUnauthorized',
+           '잘못된 비밀번호로 POST /api/auth/login을 호출하면 401 Unauthorized가 반환되어야 합니다.'
+    UNION ALL
+    SELECT 3,
+           'meRequiresToken',
+           '토큰 없이 GET /api/me를 호출했을 때 401 Unauthorized가 반환되어야 합니다.'
+    UNION ALL
+    SELECT 3,
+           'meReturnsAuthenticatedUser',
+           '유효한 Access Token으로 GET /api/me를 호출하면 200 OK와 현재 로그인 사용자의 email, nickname이 반환되어야 합니다.'
+    UNION ALL
+    SELECT 3,
+           'meRejectsInvalidToken',
+           '잘못된 JWT로 GET /api/me를 호출하면 401 Unauthorized가 반환되어야 합니다.'
+    UNION ALL
+    SELECT 4,
+           'loginReturnsAccessTokenAndRefreshToken',
+           '로그인 성공 시 응답에 accessToken과 refreshToken이 모두 포함되어야 합니다.'
+    UNION ALL
+    SELECT 4,
+           'refreshTokenIssuesNewAccessToken',
+           '유효한 Refresh Token으로 POST /api/auth/refresh를 호출하면 새로운 accessToken이 반환되어야 합니다.'
+    UNION ALL
+    SELECT 4,
+           'accessTokenCannotRefresh',
+           'Access Token을 refreshToken 값으로 사용해 POST /api/auth/refresh를 호출하면 401 Unauthorized가 반환되어야 합니다.'
+    UNION ALL
+    SELECT 4,
+           'refreshTokenCannotAccessMe',
+           'Refresh Token으로 GET /api/me 같은 보호 API를 호출하면 401 Unauthorized가 반환되어야 합니다.'
+    UNION ALL
+    SELECT 4,
+           'invalidRefreshTokenReturnsUnauthorized',
+           '잘못된 Refresh Token으로 POST /api/auth/refresh를 호출하면 401 Unauthorized가 반환되어야 합니다.'
+) t ON TRUE
+WHERE p.name = 'security-lab'
+    ON CONFLICT ON CONSTRAINT uk_testcodes_project_step_method DO UPDATE
+                                                                      SET description = EXCLUDED.description;
