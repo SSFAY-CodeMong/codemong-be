@@ -61,8 +61,11 @@ public class CodeCheckService {
     private final Map<String, AsyncCheck> asyncChecks = new ConcurrentHashMap<>();
     private final Executor checkExecutor = Executors.newCachedThreadPool();
 
-    @Value("${github.answer.repository}")
+    @Value("${github.answer.repository:}")
     private String answerRepositoryName;
+
+    @Value("${github.answer.owner:}")
+    private String answerRepositoryOwner;
 
     @Value("${github.answer.token}")
     private String answerToken;
@@ -128,7 +131,7 @@ public class CodeCheckService {
             GHRepository userRepository = myself.getRepository(repository.getName());
             String targetBranchName = currentBranch.getName();
             String targetSha = userRepository.getRef("heads/" + targetBranchName).getObject().getSha();
-            String projectId = repository.getProject().getName().toLowerCase();
+            String projectId = normalizeRepositoryName(repository.getProject().getName());
             String stepId = String.format("step%02d", currentBranch.getStep());
 //            String stepId = "step01"; // 잠깐만 1
             String track = repository.getProject().getType() == ProjectType.BE ? "backend" : "frontend";
@@ -137,7 +140,7 @@ public class CodeCheckService {
                 throw new CustomException(ErrorCode.GITHUB_ANSWER_TOKEN_MISSING);
             }
             GitHub answerGitHub = new GitHubBuilder().withOAuthToken(answerToken).build();
-            GHRepository answerRepository = answerGitHub.getRepository(answerRepositoryName);
+            GHRepository answerRepository = answerGitHub.getRepository(buildAnswerRepositoryFullName(projectId));
 
             String fullRepositoryName = answerRepository.getFullName();
             Instant dispatchedAt = Instant.now().minusSeconds(5);
@@ -159,6 +162,32 @@ public class CodeCheckService {
         } catch (IOException e) {
             throw new CustomException(ErrorCode.GITHUB_ACTIONS_DISPATCH_FAILED);
         }
+    }
+
+    private String buildAnswerRepositoryFullName(String projectId) {
+        return resolveAnswerRepositoryOwner() + "/codemong-answer-" + projectId;
+    }
+
+    private String resolveAnswerRepositoryOwner() {
+        if (StringUtils.hasText(answerRepositoryOwner)) {
+            return answerRepositoryOwner;
+        }
+        if (StringUtils.hasText(answerRepositoryName) && answerRepositoryName.contains("/")) {
+            return answerRepositoryName.substring(0, answerRepositoryName.indexOf('/'));
+        }
+        return answerRepositoryName;
+    }
+
+    private String normalizeRepositoryName(String projectName) {
+        String normalized = projectName.toLowerCase()
+                .replaceAll("[^a-z0-9-]", "-")
+                .replaceAll("-+", "-")
+                .replaceAll("^-|-$", "");
+
+        if (!StringUtils.hasText(normalized)) {
+            throw new CustomException(ErrorCode.INVALID_REPOSITORY_NAME);
+        }
+        return normalized;
     }
 
     public void receiveGithubActionsCallback(CodeCheckCallbackRequest request) {

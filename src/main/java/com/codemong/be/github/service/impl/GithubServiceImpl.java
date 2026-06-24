@@ -15,8 +15,6 @@ import com.codemong.be.project.entity.ProjectType;
 import com.codemong.be.project.repository.ProjectRepository;
 import com.codemong.be.repository.entity.GithubRepository;
 import com.codemong.be.repository.repository.GithubRepositoryRepository;
-import com.codemong.be.setup.entity.Setup;
-import com.codemong.be.setup.repository.SetupRepository;
 import com.codemong.be.user.entity.User;
 import com.codemong.be.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -45,8 +43,11 @@ public class GithubServiceImpl implements GithubService {
     @Value("${github.answer.token}")
     private String answerToken;
 
-    @Value("${github.answer.repository}")
+    @Value("${github.answer.repository:}")
     private String answerRepositoryName;
+
+    @Value("${github.answer.owner:}")
+    private String answerRepositoryOwner;
 
     private static final String ANSWER_REF = "main";
     private static final long MAX_CODE_FILE_BYTES = 1024 * 1024;
@@ -54,7 +55,6 @@ public class GithubServiceImpl implements GithubService {
     private final KmsService kmsService;
     private final ProjectRepository projectRepository;
     private final GithubRepositoryRepository githubRepositoryRepository;
-    private final SetupRepository setupRepository;
     private final ProcessRepository processRepository;
     private final BranchRepository branchRepository;
     private final UserRepository userRepository;
@@ -238,15 +238,17 @@ public class GithubServiceImpl implements GithubService {
             String currentBranchLatestSha = getBranchSha(remoteRepository, currentBranch.getName());
             GHRef createdBranch = createBranch(remoteRepository, nextBranchName, currentBranchLatestSha);
 
-            ProjectType starterTrack = oppositeTrack(track);
-            copyAnswerRepositoryContents(
-                    remoteRepository,
-                    nextBranchName,
-                    projectId,
-                    nextAnswerStepId,
-                    starterTrack,
-                    "starter"
-            );
+            if (shouldCopySupportStarter(repository.getProject(), track)) {
+                ProjectType starterTrack = oppositeTrack(track);
+                copyAnswerRepositoryContents(
+                        remoteRepository,
+                        nextBranchName,
+                        projectId,
+                        nextAnswerStepId,
+                        starterTrack,
+                        "starter"
+                );
+            }
 
             String finalBranchSha = remoteRepository.getRef("heads/" + nextBranchName).getObject().getSha();
             processRepository.findTopByRepository_IdOrderByCreatedAtDesc(repositoryId)
@@ -296,13 +298,13 @@ public class GithubServiceImpl implements GithubService {
         // 브랜치 생성
         GHRef createdBranch = createBranch(createdRepository, branchName);
 
-        copyAnswerRepositoryContents(createdRepository, branchName, projectId, answerStepId, ProjectType.BE, "starter");
-        copyAnswerRepositoryContents(createdRepository, branchName, projectId, answerStepId, ProjectType.FE, "starter");
+        copyAnswerRepositoryContents(createdRepository, branchName, projectId, answerStepId, track, "starter");
+        if (shouldCopySupportStarter(project, track)) {
+            copyAnswerRepositoryContents(createdRepository, branchName, projectId, answerStepId, oppositeTrack(track), "starter");
+        }
 
         String finalBranchSha = createdRepository.getRef("heads/" + branchName).getObject().getSha();
-        String answerMainSha = getAnswerMainSha();
 
-        setupRepository.save(new Setup(project, startStep, track, answerMainSha));
         processRepository.save(new Process(user, savedRepository, startStep, startStep));
         branchRepository.save(new Branch(
                 user,
@@ -362,7 +364,7 @@ public class GithubServiceImpl implements GithubService {
     ) throws IOException {
         validateAnswerRepositoryToken();
         GitHub answerGitHub = new GitHubBuilder().withOAuthToken(answerToken).build();
-        GHRepository answerRepository = getAnswerRepository(answerGitHub);
+        GHRepository answerRepository = getAnswerRepository(answerGitHub, projectId);
         String sourcePath = buildAnswerPath(track, projectId, stepId, artifact);
         String targetRootPath = buildTargetRootPath(track);
         try {
@@ -411,20 +413,28 @@ public class GithubServiceImpl implements GithubService {
         }
     }
 
-    private String getAnswerMainSha() throws IOException {
-        validateAnswerRepositoryToken();
-        GitHub answerGitHub = new GitHubBuilder().withOAuthToken(answerToken).build();
-        GHRepository answerRepository = getAnswerRepository(answerGitHub);
-        return answerRepository.getRef("heads/" + ANSWER_REF).getObject().getSha();
-    }
-
-    private GHRepository getAnswerRepository(GitHub answerGitHub) throws IOException {
+    private GHRepository getAnswerRepository(GitHub answerGitHub, String projectId) throws IOException {
+        String fullRepositoryName = buildAnswerRepositoryFullName(projectId);
         try {
-            return answerGitHub.getRepository(answerRepositoryName);
+            return answerGitHub.getRepository(fullRepositoryName);
         } catch (GHFileNotFoundException e) {
-            log.error("Answer repository not found or inaccessible. repository={}", answerRepositoryName, e);
+            log.error("Answer repository not found or inaccessible. repository={}", fullRepositoryName, e);
             throw new CustomException(ErrorCode.GITHUB_ANSWER_REPOSITORY_NOT_FOUND);
         }
+    }
+
+    private String buildAnswerRepositoryFullName(String projectId) {
+        return resolveAnswerRepositoryOwner() + "/codemong-answer-" + projectId;
+    }
+
+    private String resolveAnswerRepositoryOwner() {
+        if (StringUtils.hasText(answerRepositoryOwner)) {
+            return answerRepositoryOwner;
+        }
+        if (StringUtils.hasText(answerRepositoryName) && answerRepositoryName.contains("/")) {
+            return answerRepositoryName.substring(0, answerRepositoryName.indexOf('/'));
+        }
+        return answerRepositoryName;
     }
 
     private String formatStep(Long step) {
@@ -490,10 +500,17 @@ public class GithubServiceImpl implements GithubService {
         return track == ProjectType.BE ? ProjectType.FE : ProjectType.BE;
     }
 
+    private boolean shouldCopySupportStarter(Project project, ProjectType track) {
+        if (track == ProjectType.BE) {
+            return project.isFrontendRequired();
+        }
+        return true;
+    }
+
     private String findAnswerStepId(String projectId, ProjectType track, String stepPrefix) throws IOException {
         validateAnswerRepositoryToken();
         GitHub answerGitHub = new GitHubBuilder().withOAuthToken(answerToken).build();
-        GHRepository answerRepository = getAnswerRepository(answerGitHub);
+        GHRepository answerRepository = getAnswerRepository(answerGitHub, projectId);
         String projectPath = buildAnswerProjectPath(track, projectId);
 
         return answerRepository.getDirectoryContent(projectPath, ANSWER_REF)

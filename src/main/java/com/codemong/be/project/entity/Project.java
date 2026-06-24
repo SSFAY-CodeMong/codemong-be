@@ -31,6 +31,9 @@ public class Project {
     @Column(name = "max_step", nullable = false, columnDefinition = "INT DEFAULT 5")
     private int maxStep = 5;
 
+    @Column(name = "frontend_required", nullable = false, columnDefinition = "BOOLEAN DEFAULT FALSE")
+    private boolean frontendRequired = false;
+
     @CreationTimestamp
     @Column(
             name = "created_at",
@@ -53,6 +56,14 @@ public class Project {
         this.maxStep = maxStep;
     }
 
+    public Project(String name, ProjectType type, String description, int maxStep, boolean frontendRequired) {
+        this.name = name;
+        this.type = type;
+        this.description = description;
+        this.maxStep = maxStep;
+        this.frontendRequired = frontendRequired;
+    }
+
     public void update(String name, ProjectType type, String description) {
         this.name = name;
         this.type = type;
@@ -64,5 +75,13 @@ public class Project {
         this.type = type;
         this.description = description;
         this.maxStep = maxStep;
+    }
+
+    public void update(String name, ProjectType type, String description, int maxStep, boolean frontendRequired) {
+        this.name = name;
+        this.type = type;
+        this.description = description;
+        this.maxStep = maxStep;
+        this.frontendRequired = frontendRequired;
     }
 }

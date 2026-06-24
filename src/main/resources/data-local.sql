@@ -5,8 +5,8 @@ VALUES
 ON CONFLICT (id) DO UPDATE
 SET name = EXCLUDED.name;
 
-INSERT INTO projects (description, name, type, max_step)
-SELECT '게시판 CRUD, 댓글, 검증/예외 처리를 단계별 hidden test로 구현하는 Spring Boot 백엔드 프로젝트입니다.', 'mmcafe', 'BE', 5
+INSERT INTO projects (description, name, type, max_step, frontend_required)
+SELECT '게시판 CRUD, 댓글, 검증/예외 처리를 단계별 hidden test로 구현하는 Spring Boot 백엔드 프로젝트입니다.', 'mmcafe', 'BE', 5, TRUE
 WHERE NOT EXISTS (
     SELECT 1 FROM projects WHERE name = 'mmcafe'
 );
@@ -14,7 +14,8 @@ WHERE NOT EXISTS (
 UPDATE projects
 SET description = '게시판 CRUD, 댓글, 검증/예외 처리를 단계별 hidden test로 구현하는 Spring Boot 백엔드 프로젝트입니다.',
     type = 'BE',
-    max_step = 5
+    max_step = 5,
+    frontend_required = TRUE
 WHERE name = 'mmcafe';
 
 UPDATE projects
@@ -234,3 +235,93 @@ for (Order order : orders) {
 WHERE NOT EXISTS (
     SELECT 1 FROM mail_questions existing WHERE existing.title = q.title
 );
+
+INSERT INTO projects (description, name, type, max_step, frontend_required)
+SELECT 'JPA 연관관계 매핑, 조회 API, N+1 문제 해결, 컬렉션 Fetch Join 페이징 문제, 페이징 최적화, DTO Projection을 단계별 hidden test로 학습하는 Spring Boot 백엔드 프로젝트입니다.',
+       'jpa-lab',
+       'BE',
+       7,
+       FALSE
+    WHERE NOT EXISTS (
+    SELECT 1 FROM projects WHERE name = 'jpa-lab'
+);
+
+UPDATE projects
+SET description = 'JPA 연관관계 매핑, 조회 API, N+1 문제 해결, 컬렉션 Fetch Join 페이징 문제, 페이징 최적화, DTO Projection을 단계별 hidden test로 학습하는 Spring Boot 백엔드 프로젝트입니다.',
+    type = 'BE',
+    max_step = 7,
+    frontend_required = FALSE
+WHERE name = 'jpa-lab';
+
+INSERT INTO steps (project_id, step, content)
+SELECT p.id, s.step, s.content
+FROM projects p
+         JOIN (
+    SELECT 1 AS step,
+           'Member와 Post 엔티티를 만들고 게시글 작성자 관계를 매핑합니다. Member는 id, email, nickname을 가져야 하며, Post는 id, title, content, member, createdAt, updatedAt을 가져야 합니다. Post와 Member는 N:1 관계이고 Post.member는 LAZY로딩이어야 합니다.' AS content
+    UNION ALL
+    SELECT 2,
+           'Comment 엔티티를 추가하고 Post, Member와의 연관관계를 매핑합니다. Comment는 id, content, post, member, createdAt을 가져야 하며, Comment.post와 Comment.member는 각각 N:1 LAZY 관계여야 합니다. Post는 comments 컬렉션을 가질 수 있어야 합니다.'
+    UNION ALL
+    SELECT 3,
+           '게시글 단건 조회 API를 구현합니다. GET /api/posts/{postId}는 게시글 id, title, content, 작성자 nickname, 댓글 목록을 DTO로 반환해야 합니다. Entity를 Controller 응답으로 직접 노출하면 안 되며, 존재하지 않는 게시글은 404 Not Found를 반환해야 합니다.'
+    UNION ALL
+    SELECT 4,
+           '게시글 목록 조회와 페이징을 구현합니다. GET /api/posts?page={page}&size={size}는 content, page, size, totalElements를 포함한 응답을 반환해야 합니다. 목록은 createdAt 기준 최신순으로 정렬되어야 하며, 각 게시글의 postId, title, 작성자 nickname, commentCount를 제공해야 합니다. 댓글 목록 전체를 목록 API에서 응답하거나 과도하게 로딩하지 않도록 주의합니다.'
+    UNION ALL
+    SELECT 5,
+           '게시글 목록에서 작성자 정보를 조회할 때 발생할 수 있는 N+1 문제를 해결합니다. 목록 조회 시 작성자 nickname을 함께 응답하면서도 작성자 조회 쿼리가 게시글 수만큼 반복되지 않도록 Fetch Join 또는 EntityGraph를 적용해야 합니다. 이 단계에서는 N+1 해결에 집중하며, 다음 단계에서 컬렉션 Fetch Join과 페이징 문제를 다룹니다.'
+    UNION ALL
+    SELECT 6,
+           '컬렉션 Fetch Join과 페이징을 함께 사용할 때 발생하는 문제를 해결합니다. 목록 조회는 요청한 page size를 정확히 유지해야 하며 댓글 컬렉션을 Fetch Join으로 함께 가져와 메모리 페이징이 발생하는 구조를 피해야 합니다. 목록 API는 게시글 요약과 commentCount만 반환하고, 댓글 목록은 상세 API에서 조회되도록 책임을 분리해야 합니다.'
+    UNION ALL
+    SELECT 7,
+           '게시글 목록 조회에 DTO Projection을 적용합니다. Entity 조회 후 변환이 아니라 필요한 필드만 select하는 조회 전용 DTO 기반 구조로 구현해야 합니다. 응답에는 postId, title, authorNickname, commentCount가 포함되어야 하며 Entity를 직접 노출하면 안 됩니다.'
+) s ON TRUE
+WHERE p.name = 'jpa-lab'
+    ON CONFLICT ON CONSTRAINT uk_steps_project_step DO UPDATE
+                                                           SET content = EXCLUDED.content;
+
+INSERT INTO testcodes (project_id, step, method_name, description)
+SELECT p.id, t.step, t.method_name, t.description
+FROM projects p
+         JOIN (
+    SELECT 1 AS step,
+           'postHasLazyManyToOneMemberAndAuditFields' AS method_name,
+           'Member와 Post를 저장한 뒤 Post의 title, 작성자 nickname, createdAt, updatedAt을 조회할 수 있어야 합니다. Post.member는 @ManyToOne 관계이고 FetchType.LAZY로 매핑되어야 합니다.' AS description
+    UNION ALL
+    SELECT 2,
+           'commentRelationsAreMappedAndPersistable',
+           'Comment를 Post와 Member에 연결해 저장할 수 있어야 합니다. Post.comments는 1:N 관계로 매핑되어야 하고, Comment.post와 Comment.member는 각각 N:1 LAZY 관계여야 합니다.'
+    UNION ALL
+    SELECT 3,
+           'getPostDetailReturnsDtoWithComments',
+           'GET /api/posts/{postId} 호출 시 게시글 id, title, content, 작성자 nickname, 댓글 content, 댓글 작성자 nickname이 DTO 응답으로 반환되어야 합니다. Entity를 직접 응답으로 노출하면 안 됩니다.'
+    UNION ALL
+    SELECT 3,
+           'missingPostReturnsNotFound',
+           '존재하지 않는 게시글 id로 GET /api/posts/{postId}를 호출했을 때 404 Not Found를 반환해야 합니다.'
+    UNION ALL
+    SELECT 4,
+           'listPostsUsesPagingLatestOrderAndCommentCount',
+           '여러 게시글과 댓글을 저장한 뒤 GET /api/posts?page=0&size=2를 호출하면 content 크기, page, size, totalElements가 맞아야 합니다. 게시글은 createdAt 기준 최신순이어야 하며 commentCount가 실제 댓글 수와 일치해야 합니다.'
+    UNION ALL
+    SELECT 5,
+           'listPostsDoesNotRepeatAuthorQueries',
+           '게시글 목록 조회 시 작성자 nickname을 함께 응답하되 작성자 조회 쿼리가 게시글 수만큼 반복되면 안 됩니다. Fetch Join 또는 EntityGraph 등으로 작성자 N+1 문제를 해결했는지 Hibernate Statistics 기반으로 확인합니다.'
+    UNION ALL
+    SELECT 6,
+           'listPostsKeepsPageSizeAndDoesNotExposeComments',
+           '목록 API는 요청한 page size를 정확히 유지해야 하며 댓글 목록을 응답에 직접 포함하면 안 됩니다. 컬렉션 Fetch Join과 Pageable을 함께 사용해 메모리 페이징이 발생하는 구조를 피해야 합니다.'
+    UNION ALL
+    SELECT 6,
+           'detailApiStillReturnsComments',
+           '페이징 최적화 이후에도 상세 API GET /api/posts/{postId}는 댓글 목록을 정상 반환해야 합니다. 목록 조회와 상세 조회의 책임이 분리되어 있어야 합니다.'
+    UNION ALL
+    SELECT 7,
+           'listPostsUsesDtoProjection',
+           '게시글 목록 조회는 DTO Projection 기반으로 필요한 필드만 조회해야 합니다. 응답에는 postId, title, authorNickname, commentCount가 포함되어야 하며 Entity를 직접 노출하면 안 됩니다.'
+) t ON TRUE
+WHERE p.name = 'jpa-lab'
+    ON CONFLICT ON CONSTRAINT uk_testcodes_project_step_method DO UPDATE
+                                                                      SET description = EXCLUDED.description;
