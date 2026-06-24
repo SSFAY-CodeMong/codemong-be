@@ -8,6 +8,7 @@ import com.codemong.be.global.exception.ErrorCode;
 import com.codemong.be.report.dto.BranchFeedback;
 import com.codemong.be.report.dto.FinalReportResult;
 import com.codemong.be.report.dto.ReportResponse;
+import com.codemong.be.report.dto.ReportSummary;
 import com.codemong.be.report.entity.Report;
 import com.codemong.be.report.repository.ReportRepository;
 import com.codemong.be.repository.entity.GithubRepository;
@@ -60,12 +61,22 @@ public class ReportService {
     }
 
     public List<ReportResponse> getReportList(Long userId) {
-        return githubRepositoryRepository.findByUser_IdOrderByCreatedAtDesc(userId)
+        return reportRepository.getReportList(userId)
                 .stream()
-                .flatMap(repository -> reportRepository.findByGithubRepository_IdOrderByCreatedAtDesc(repository.getId())
-                        .stream())
-                .map(ReportResponse::from)
+                .map(this::toReportResponse)
                 .toList();
+    }
+
+    private ReportResponse toReportResponse(ReportSummary summary) {
+        return new ReportResponse(
+                summary.id(),
+                summary.repositoryId(),
+                summary.projectName(),
+                summary.content(),
+                summary.score(),
+                summary.createdAt(),
+                feedbackRepository.findLatestDetailsByRepositoryId(summary.repositoryId())
+        );
     }
 
     private void validateRepositoryOwner(GithubRepository repository, Long userId) {
