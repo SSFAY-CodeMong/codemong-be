@@ -14,6 +14,7 @@ import com.codemong.be.report.repository.ReportRepository;
 import com.codemong.be.repository.entity.GithubRepository;
 import com.codemong.be.repository.repository.GithubRepositoryRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -30,6 +31,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
+@Slf4j
 public class ReportService {
     private final ReportRepository reportRepository;
     private final GithubRepositoryRepository githubRepositoryRepository;
@@ -40,6 +42,7 @@ public class ReportService {
     @Async
     @Transactional
     public void getReport(Long repositoryId, Long userId) {
+        log.info("리포트 생성 시작");
         GithubRepository repository = githubRepositoryRepository.findByIdWithUserAndProject(repositoryId)
                 .orElseThrow(() -> new CustomException(ErrorCode.REPOSITORY_NOT_FOUND));
 
