@@ -15,14 +15,17 @@ public class AdminAuthService {
 
     private final Set<String> activeTokens = ConcurrentHashMap.newKeySet();
 
-    @Value("${codemong.admin.username:CMADMIN}")
+    @Value("${ADMIN_ID:}")
     private String adminUsername;
 
-    @Value("${codemong.admin.password:PUHvWbokMjY010TinXkPzYlj}")
+    @Value("${ADMIN_PW:}")
     private String adminPassword;
 
     public String login(String username, String password) {
-        if (!adminUsername.equals(username) || !adminPassword.equals(password)) {
+        if (!StringUtils.hasText(adminUsername)
+                || !StringUtils.hasText(adminPassword)
+                || !adminUsername.equals(username)
+                || !adminPassword.equals(password)) {
             throw new CustomException(ErrorCode.INVALID_TOKEN);
         }
         String token = UUID.randomUUID().toString();
