@@ -30,6 +30,7 @@ public enum ErrorCode {
 
     //Project
     PROJECT_NOT_FOUND(HttpStatus.NOT_FOUND, "프로젝트를 찾을 수 없습니다.", "40401"),
+    PROJECT_SPEC_NOT_FOUND(HttpStatus.NOT_FOUND, "프로젝트 요구사항을 찾을 수 없습니다.", "40403"),
 
     //Repository
     REPOSITORY_NOT_FOUND(HttpStatus.NOT_FOUND, "레포지토리를 찾을 수 없습니다.", "40402"),

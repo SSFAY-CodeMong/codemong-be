@@ -6,8 +6,8 @@ import com.codemong.be.project.dto.ProjectDetailResponse;
 import com.codemong.be.project.dto.ProjectSpecResponse;
 import com.codemong.be.project.dto.ProjectStepResponse;
 import com.codemong.be.project.entity.Project;
-import com.codemong.be.project.entity.ProjectStep;
 import com.codemong.be.project.repository.ProjectRepository;
+import com.codemong.be.project.repository.ProjectSpecRepository;
 import com.codemong.be.project.repository.ProjectStepRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +25,7 @@ public class ProjectController {
 
     private final ProjectRepository projectRepository;
     private final ProjectStepRepository projectStepRepository;
+    private final ProjectSpecRepository projectSpecRepository;
 
     @GetMapping
     public ResponseEntity<List<ProjectDetailResponse>> getProjects() {
@@ -52,10 +53,10 @@ public class ProjectController {
             @PathVariable Long projectId,
             @PathVariable Integer step
     ) {
-        findProject(projectId);
-        ProjectStep projectStep = projectStepRepository.findByProject_IdAndStep(projectId, step)
-                .orElseThrow(() -> new CustomException(ErrorCode.PROJECT_NOT_FOUND));
-        return ResponseEntity.ok(ProjectSpecResponse.from(projectStep));
+        Project project = findProject(projectId);
+        return ResponseEntity.ok(projectSpecRepository.findByProject_IdAndStepAndType(projectId, step, project.getType())
+                .map(ProjectSpecResponse::from)
+                .orElseThrow(() -> new CustomException(ErrorCode.PROJECT_SPEC_NOT_FOUND)));
     }
 
     private Project findProject(Long projectId) {

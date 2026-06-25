@@ -1,25 +1,28 @@
 package com.codemong.be.project.dto;
 
-import com.codemong.be.project.entity.ProjectStep;
+import com.codemong.be.project.entity.ProjectSpec;
+import com.codemong.be.project.entity.ProjectType;
 
 import java.util.List;
 
 public record ProjectSpecResponse(
         Long projectId,
         Long step,
+        ProjectType type,
         String stepId,
         String title,
         String description,
         List<String> requirements
 ) {
-    public static ProjectSpecResponse from(ProjectStep projectStep) {
-        String stepId = String.format("step%02d", projectStep.getStep());
+    public static ProjectSpecResponse from(ProjectSpec projectSpec) {
+        String stepId = String.format("step%02d", projectSpec.getStep());
         return new ProjectSpecResponse(
-                projectStep.getProject().getId(),
-                (long) projectStep.getStep(),
+                projectSpec.getProject().getId(),
+                (long) projectSpec.getStep(),
+                projectSpec.getType(),
                 stepId,
-                projectStep.getProject().getName() + " " + stepId,
-                projectStep.getContent(),
+                projectSpec.getProject().getName() + " " + stepId,
+                projectSpec.getContent(),
                 List.of(
                         "starter 코드의 TODO를 확인합니다.",
                         "요구사항에 맞게 기능을 구현합니다.",
