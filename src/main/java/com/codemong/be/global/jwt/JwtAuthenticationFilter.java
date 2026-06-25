@@ -17,6 +17,8 @@ import java.io.IOException;
 @Slf4j
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+    private static final String USER_BAN_KEY_PREFIX = "BAN:";
+
     private final JwtProvider jwtProvider;
     private final RedisTemplate<String, String> redisTemplate;
 
@@ -27,6 +29,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (!jwtProvider.validateToken(accessToken) || !jwtProvider.validateTokenType(accessToken, JwtProvider.TOKEN_TYPE_ACCESS)) {
                 SecurityContextHolder.clearContext();
                 response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "유효하지 않거나 만료된 토큰입니다.");
+                return;
+            }
+
+            Long userId = jwtProvider.getUserId(accessToken);
+            if (Boolean.TRUE.equals(redisTemplate.hasKey(USER_BAN_KEY_PREFIX + userId))) {
+                SecurityContextHolder.clearContext();
+                response.sendError(HttpServletResponse.SC_FORBIDDEN, "밴 처리된 사용자입니다.");
                 return;
             }
 

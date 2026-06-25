@@ -1,5 +1,6 @@
 package com.codemong.be.ai.service;
 
+import com.codemong.be.admin.service.AdminTaskLogService;
 import com.codemong.be.ai.dto.CodeReviewResponse;
 import com.codemong.be.ai.dto.FailedTestResponse;
 import com.codemong.be.ai.dto.UserQuestionRequest;
@@ -50,6 +51,7 @@ public class AIService {
     private final ReportService reportService;
     private final ProjectStepRepository projectStepRepository;
     private final Executor aiTaskExecutor;
+    private final AdminTaskLogService adminTaskLogService;
 
 
     public CodeReviewResponse codeReview(Long repositoryId, Long step, Long userId) {
@@ -220,10 +222,20 @@ public class AIService {
         Branch curBranch = branchRepository.findTopByRepository_IdOrderByCreatedAtDesc(repositoryId)
                 .orElseThrow(()-> new RuntimeException("TODO : 해당 브랜치가 없습니다."));
         Long branchId = curBranch.getId();
+        Long step = curBranch.getStep();
+        String taskId = adminTaskLogService.start(
+                "CHAT_QUESTION",
+                "userId " + userId + "번이 repository " + repositoryId + "번의 " + branchId + "번 branch에 대해 채팅질의 호출.",
+                userId,
+                repositoryId,
+                branchId,
+                step
+        );
         String feedbackSummary = chatHistoryService.getLatestChatHistory(branchId);
 
-        // 2. LLM에 질의 하기
-        String systemPrompt = """
+        try {
+            // 2. LLM에 질의 하기
+            String systemPrompt = """
             너는 Java/Spring 코드 설명과 코드 리뷰를 도와주는 백엔드 멘토다.
             
             Java/Spring/html/css/js 등 웹 프로그래밍과 관련되지 않은 질문은 답변하지마.
@@ -249,7 +261,7 @@ public class AIService {
             - 2~3문장 이내로 작성한다.
             """;
 
-        String userPrompt = """
+            String userPrompt = """
             아래 정보를 참고해서 사용자의 질문에 답변해줘.
             
             [기존 누적 요약]
@@ -262,21 +274,26 @@ public class AIService {
             %s
             """.formatted(feedbackSummary, context, question);
 
-        String answer = chatClient.prompt()
-                .system(systemPrompt)
-                .user(userPrompt)
-                .call()
-                .content();
-        log.debug("모델: gpt-5-mini\n\n[System Prompt]\n{}\n\n[User Prompt]\n{}"
-                , systemPrompt, userPrompt);
+            String answer = chatClient.prompt()
+                    .system(systemPrompt)
+                    .user(userPrompt)
+                    .call()
+                    .content();
+            log.debug("모델: gpt-5-mini\n\n[System Prompt]\n{}\n\n[User Prompt]\n{}"
+                    , systemPrompt, userPrompt);
 
-        // 3. 피드백 내용 저장하기(요약)
-        String userAnswer = parsing(answer, "user");
-        String updatedSummary = parsing(answer, "summary");
-        chatHistoryService.save(curBranch, updatedSummary);
+            // 3. 피드백 내용 저장하기(요약)
+            String userAnswer = parsing(answer, "user");
+            String updatedSummary = parsing(answer, "summary");
+            chatHistoryService.save(curBranch, updatedSummary);
+            adminTaskLogService.complete(taskId, true, "answerLength=" + userAnswer.length());
 
-        // 4. LLM 응답 반환하기
-        return new UserQuestionResponse(userAnswer);
+            // 4. LLM 응답 반환하기
+            return new UserQuestionResponse(userAnswer);
+        } catch (RuntimeException e) {
+            adminTaskLogService.complete(taskId, false, e.getClass().getSimpleName());
+            throw e;
+        }
     }
 
     private String parsing(String answer, String type){

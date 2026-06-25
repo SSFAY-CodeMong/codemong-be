@@ -44,6 +44,13 @@ public class UserService {
         redisTemplate.delete(redisKey);
     }
 
+    @Transactional
+    public void forceUpdateEmail(Long userId, String email) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new CustomException(ErrorCode.INVALID_TOKEN));
+        user.updateEmail(normalizeEmail(email));
+    }
+
     private String normalizeEmail(String email) {
         if (!StringUtils.hasText(email)) {
             throw new CustomException(ErrorCode.INVALID_EMAIL);
