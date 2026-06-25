@@ -2,6 +2,7 @@ package com.codemong.be.codecheck.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.codemong.be.admin.service.AdminTaskLogService;
 import com.codemong.be.branch.entity.Branch;
 import com.codemong.be.branch.repository.BranchRepository;
 import com.codemong.be.codecheck.dto.CodeCheckCallbackRequest;
@@ -58,6 +59,7 @@ public class CodeCheckService {
     private final KmsService kmsService;
     private final ObjectMapper objectMapper;
     private final CodeCheckArtifactUtil codeCheckArtifactUtil;
+    private final AdminTaskLogService adminTaskLogService;
     private final Map<String, AsyncCheck> asyncChecks = new ConcurrentHashMap<>();
     private final Executor checkExecutor = Executors.newCachedThreadPool();
 
@@ -123,9 +125,18 @@ public class CodeCheckService {
         Branch currentBranch = branchRepository.findTopByRepository_IdOrderByCreatedAtDesc(repositoryId)
                 .orElseThrow(() -> new CustomException(ErrorCode.GITHUB_BRANCH_BASE_NOT_FOUND));
 
-        String decryptToken = kmsService.decrypt(user.getGithubToken());
+        String taskId = adminTaskLogService.start(
+                "CODE_CHECK",
+                "userId " + userId + "번이 repository " + repositoryId + "번의 "
+                        + currentBranch.getId() + "번 branch에 대해 검사하기 호출.",
+                userId,
+                repositoryId,
+                currentBranch.getId(),
+                step
+        );
 
         try {
+            String decryptToken = kmsService.decrypt(user.getGithubToken());
             GitHub userGitHub = new GitHubBuilder().withOAuthToken(decryptToken).build();
             GHMyself myself = userGitHub.getMyself();
             GHRepository userRepository = myself.getRepository(repository.getName());
@@ -156,11 +167,22 @@ public class CodeCheckService {
                     stepId
             );
 
-            return waitWorkflowResult(answerToken, fullRepositoryName, workflowPath, dispatchedAt);
+            CodeCheckResult result = waitWorkflowResult(answerToken, fullRepositoryName, workflowPath, dispatchedAt);
+            adminTaskLogService.complete(
+                    taskId,
+                    result.passed(),
+                    "passed=" + result.passed() + ", failedTests=" + result.failedTests()
+            );
+            return result;
         } catch (CustomException e) {
+            adminTaskLogService.complete(taskId, false, e.getErrorCode().name());
             throw e;
         } catch (IOException e) {
+            adminTaskLogService.complete(taskId, false, "GITHUB_ACTIONS_DISPATCH_FAILED");
             throw new CustomException(ErrorCode.GITHUB_ACTIONS_DISPATCH_FAILED);
+        } catch (RuntimeException e) {
+            adminTaskLogService.complete(taskId, false, e.getClass().getSimpleName());
+            throw e;
         }
     }
 

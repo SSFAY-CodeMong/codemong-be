@@ -51,6 +51,7 @@ public class SecurityConfig {
                                 "/login/**",
                                 "/oauth2/**",
                                 "/auth/reissue",
+                                "/admin/**",
                                 "/code-check/github-actions/callback",
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**"

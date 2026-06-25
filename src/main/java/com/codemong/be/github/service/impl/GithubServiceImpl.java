@@ -1,5 +1,6 @@
 package com.codemong.be.github.service.impl;
 
+import com.codemong.be.admin.service.AdminTaskLogService;
 import com.codemong.be.branch.entity.Branch;
 import com.codemong.be.branch.repository.BranchRepository;
 import com.codemong.be.github.dto.RepositoryInitRequest;
@@ -58,6 +59,7 @@ public class GithubServiceImpl implements GithubService {
     private final ProcessRepository processRepository;
     private final BranchRepository branchRepository;
     private final UserRepository userRepository;
+    private final AdminTaskLogService adminTaskLogService;
 
 
     @Override
@@ -80,6 +82,14 @@ public class GithubServiceImpl implements GithubService {
                 .orElseThrow(() -> new CustomException(ErrorCode.PROJECT_NOT_FOUND));
         validateRepositoryInitRequest(request);
         validateStartStep(project, request);
+        String taskId = adminTaskLogService.start(
+                "REPOSITORY_CREATE",
+                "userId " + userId + "번이 project " + projectId + "번에 대해 repository 생성 호출.",
+                userId,
+                null,
+                null,
+                request == null ? null : request.getStartStep()
+        );
 
         try {
             String decryptToken = kmsService.decrypt(user.getGithubToken());
@@ -110,12 +120,18 @@ public class GithubServiceImpl implements GithubService {
 
             initializeRepositoryStep(user, project, savedRepository, createdRepository, request);
 
+            adminTaskLogService.complete(taskId, true, "repositoryId=" + savedRepository.getId() + ", name=" + savedRepository.getName());
             return savedRepository;
         } catch (CustomException e) {
+            adminTaskLogService.complete(taskId, false, e.getErrorCode().name());
             throw e;
         } catch (IOException e) {
             log.error("Failed to create GitHub project repository", e);
+            adminTaskLogService.complete(taskId, false, e.getClass().getSimpleName());
             throw new CustomException(ErrorCode.GITHUB_REPOSITORY_CREATE_FAILED);
+        } catch (RuntimeException e) {
+            adminTaskLogService.complete(taskId, false, e.getClass().getSimpleName());
+            throw e;
         }
     }
 
@@ -128,6 +144,14 @@ public class GithubServiceImpl implements GithubService {
         if (!repository.getUser().getId().equals(user.getId())) {
             throw new CustomException(ErrorCode.REPOSITORY_NOT_FOUND);
         }
+        String taskId = adminTaskLogService.start(
+                "REPOSITORY_DELETE",
+                "userId " + userId + "번이 repository " + repositoryId + " 삭제 호출.",
+                userId,
+                repositoryId,
+                null,
+                null
+        );
 
         try {
             String decryptToken = kmsService.decrypt(user.getGithubToken());
@@ -143,15 +167,22 @@ public class GithubServiceImpl implements GithubService {
             );
             githubRepositoryRepository.delete(repository);
 
+            adminTaskLogService.complete(taskId, true, "deletedRepositoryId=" + response.getDeletedRepositoryId());
             return response;
         } catch (CustomException e) {
+            adminTaskLogService.complete(taskId, false, e.getErrorCode().name());
             throw e;
         } catch (GHFileNotFoundException e) {
             log.error("GitHub repository not found: {}", repository.getName(), e);
+            adminTaskLogService.complete(taskId, false, e.getClass().getSimpleName());
             throw new CustomException(ErrorCode.REPOSITORY_NOT_FOUND);
         } catch (IOException e) {
             log.error("Failed to delete GitHub project repository: {}", repository.getName(), e);
+            adminTaskLogService.complete(taskId, false, e.getClass().getSimpleName());
             throw new CustomException(ErrorCode.GITHUB_REPOSITORY_DELETE_FAILED);
+        } catch (RuntimeException e) {
+            adminTaskLogService.complete(taskId, false, e.getClass().getSimpleName());
+            throw e;
         }
     }
 

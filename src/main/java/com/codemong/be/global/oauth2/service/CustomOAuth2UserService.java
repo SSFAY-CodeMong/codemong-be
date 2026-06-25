@@ -1,5 +1,6 @@
 package com.codemong.be.global.oauth2.service;
 
+import com.codemong.be.admin.service.AdminTaskLogService;
 import com.codemong.be.global.exception.CustomException;
 import com.codemong.be.global.exception.ErrorCode;
 import com.codemong.be.global.kms.KmsService;
@@ -10,6 +11,7 @@ import com.codemong.be.user.entity.User;
 import com.codemong.be.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
@@ -24,9 +26,13 @@ import java.util.Map;
 @Service
 @RequiredArgsConstructor
 public class CustomOAuth2UserService extends DefaultOAuth2UserService {
+    private static final String USER_BAN_KEY_PREFIX = "BAN:";
+
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final KmsService kmsService;
+    private final RedisTemplate<String, String> redisTemplate;
+    private final AdminTaskLogService adminTaskLogService;
 
     @Override
     @Transactional
@@ -76,6 +82,22 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         }else{
             user.updateGithubToken(encryptToken);
         }
+
+        if (Boolean.TRUE.equals(redisTemplate.hasKey(USER_BAN_KEY_PREFIX + user.getId()))) {
+            throw new OAuth2AuthenticationException(
+                    new OAuth2Error("USER_BANNED", "밴 처리된 사용자입니다.", null)
+            );
+        }
+
+        String taskId = adminTaskLogService.start(
+                "USER_LOGIN",
+                "userId " + user.getId() + "번이 GitHub OAuth 로그인.",
+                user.getId(),
+                null,
+                null,
+                null
+        );
+        adminTaskLogService.complete(taskId, true, "snsId=" + snsId);
 
         return new CustomOAuth2User(user.getId(), user.getRole().getName(), attributes);
     }
