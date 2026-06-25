@@ -11,3 +11,7 @@ target/
 .env
 
 src/main/resources/mail-contents-local.sql
+
+docs/**
+.logs/
+codemong-fe
