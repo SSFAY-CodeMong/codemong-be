@@ -92,6 +92,9 @@ aws:
     key-id: ${KMS_KEY_ID:}
 
 codemong:
+  admin:
+    username: ${ADMIN_ID:}
+    password: ${ADMIN_PW:}
   pgvector:
     datasource:
       url: jdbc:postgresql://${AWS_RDS_ENDPOINT}:${AWS_RDS_PORT}/codemong_db?sslmode=require
