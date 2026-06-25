@@ -427,3 +427,158 @@ FROM projects p
 WHERE p.name = 'security-lab'
     ON CONFLICT ON CONSTRAINT uk_testcodes_project_step_method DO UPDATE
                                                                       SET description = EXCLUDED.description;
+
+
+INSERT INTO projects (description, name, type, max_step, frontend_required)
+SELECT '상품 CRUD, 이미지 업로드, 상품 대표 이미지 연결, 이미지 검증/조회 URL 제공, 이미지 수정/삭제 및 파일 정리를 단계별 hidden test로 학습하는 Spring Boot 쇼핑몰 백엔드 프로젝트입니다.',
+       'market',
+       'BE',
+       5,
+       TRUE
+WHERE NOT EXISTS (
+    SELECT 1 FROM projects WHERE name = 'market'
+);
+
+UPDATE projects
+SET description = '상품 CRUD, 이미지 업로드, 상품 대표 이미지 연결, 이미지 검증/조회 URL 제공, 이미지 수정/삭제 및 파일 정리를 단계별 hidden test로 학습하는 Spring Boot 쇼핑몰 백엔드 프로젝트입니다.',
+    type = 'BE',
+    max_step = 5,
+    frontend_required = TRUE
+WHERE name = 'market';
+
+INSERT INTO steps (project_id, step, content)
+SELECT p.id, s.step, s.content
+FROM projects p
+         JOIN (
+    SELECT 1 AS step,
+           '상품 CRUD API를 구현합니다. Product는 id, name, price, description 필드를 가지며, POST /api/products로 상품을 등록하고, GET /api/products/{productId}로 단건 조회하고, GET /api/products로 목록 조
+           회하고, PUT /api/products/{productId}로 수정하고, DELETE /api/products/{productId}로 삭제할 수 있어야 합니다. 요청값 검증과 존재하지 않는 상품 조회 시 404 응답을 처리해야 합니다.' AS content
+    UNION ALL
+    SELECT 2,
+           '상품과 연결하지 않는 단일 이미지 업로드 API를 구현합니다. POST /api/images는 multipart/form-data의 image 파일을 받아 UUID 기반 저장 파일명으로 로컬 upload-dir에 저장해야 합니다. 응답에는
+           originalFileName, storedFileName, fileSize, contentType이 포함되어야 하며 빈 파일 업로드 시 400 Bad Request를 반환해야 합니다.'
+    UNION ALL
+    SELECT 3,
+           '상품 등록 시 대표 이미지를 함께 저장하는 API를 구현합니다. POST /api/products/with-image는 product JSON part와 image MultipartFile part를 함께 받아 Product를 DB에 저장하고 이미지 파일은 로컬에 저
+           장하며 ProductImage 메타데이터를 DB에 저장해야 합니다. 상품 응답과 GET /api/products/{productId} 응답에는 /images/{storedFileName} 형식의 imageUrl이 포함되어야 합니다.'
+    UNION ALL
+    SELECT 4,
+           '이미지 업로드 검증과 이미지 조회 URL을 구현합니다. jpg, jpeg, png, webp 확장자와 image/jpeg, image/png, image/webp Content-Type만 허용하고 최대 파일 크기는 5MB로 제한해야 합니다. 검증 실패 시 400
+           Bad Request를 반환해야 하며, WebMvcConfigurer를 이용해 /images/** 요청이 upload-dir의 파일을 응답하도록 정적 리소스 매핑을 구현해야 합니다.'
+    UNION ALL
+    SELECT 5,
+           '상품 대표 이미지 수정과 상품 삭제 시 이미지 파일 정리를 구현합니다. PUT /api/products/{productId}/image는 새 대표 이미지를 검증하고 저장한 뒤 기존 이미지 파일을 삭제하고 ProductImage 메타데이터를
+           갱신해야 합니다. DELETE /api/products/{productId}는 Product와 ProductImage를 삭제하고 실제 이미지 파일도 함께 삭제해야 합니다.'
+) s ON TRUE
+WHERE p.name = 'market'
+ON CONFLICT ON CONSTRAINT uk_steps_project_step DO UPDATE
+    SET content = EXCLUDED.content;
+
+INSERT INTO testcodes (project_id, step, method_name, description)
+SELECT p.id, t.step, t.method_name, t.description
+FROM projects p
+         JOIN (
+    SELECT 1 AS step,
+           'createProductAndReadProduct' AS method_name,
+           'POST /api/products로 상품을 등록하면 201 Created와 상품 응답이 반환되어야 하며, 등록된 상품은 GET /api/products/{productId}로 조회할 수 있어야 합니다.' AS description
+    UNION ALL
+    SELECT 1,
+           'readProductsReturnsProductList',
+           '여러 상품을 등록한 뒤 GET /api/products를 호출하면 상품 목록이 배열로 반환되어야 합니다.'
+    UNION ALL
+    SELECT 1,
+           'updateProduct',
+           'PUT /api/products/{productId}로 상품명, 가격, 설명을 수정하면 수정된 상품 응답이 반환되어야 합니다.'
+    UNION ALL
+    SELECT 1,
+           'deleteProduct',
+           'DELETE /api/products/{productId} 호출 시 204 No Content가 반환되고 이후 해당 상품 조회는 404를 반환해야 합니다.'
+    UNION ALL
+    SELECT 1,
+           'createInvalidProductFails',
+           '상품명, 가격, 설명 검증에 실패하는 요청은 400 Bad Request를 반환해야 합니다.'
+
+    UNION ALL
+    SELECT 2,
+           'uploadImage',
+           'POST /api/images로 이미지 파일을 업로드하면 originalFileName, storedFileName, fileSize, contentType이 반환되고 실제 파일이 upload-dir에 저장되어야 합니다.'
+    UNION ALL
+    SELECT 2,
+           'uploadEmptyImageFails',
+           '빈 이미지 파일을 POST /api/images로 업로드하면 400 Bad Request와 오류 메시지가 반환되어야 합니다.'
+
+    UNION ALL
+    SELECT 3,
+           'createProductWithImageAndReadProduct',
+           'POST /api/products/with-image로 상품 JSON과 이미지 파일을 함께 등록하면 Product와 ProductImage가 DB에 저장되고 이미지 파일도 실제 디렉터리에 저장되어야 하며, 상품 조회 응답에 imageUrl이 포함되어
+           야 합니다.'
+    UNION ALL
+    SELECT 3,
+           'readMissingProductFails',
+           '존재하지 않는 상품을 GET /api/products/{productId}로 조회하면 404 Not Found가 반환되어야 합니다.'
+    UNION ALL
+    SELECT 3,
+           'uploadEmptyImageFails',
+           '상품과 이미지 함께 등록 시 빈 이미지 파일을 업로드하면 400 Bad Request가 반환되어야 합니다.'
+    UNION ALL
+    SELECT 3,
+           'invalidProductFails',
+           '상품과 이미지 함께 등록 시 상품명 또는 가격 검증에 실패하면 400 Bad Request가 반환되어야 합니다.'
+
+    UNION ALL
+    SELECT 4,
+           'uploadPngImageAndReadImageUrl',
+           'png 이미지로 상품을 등록하면 성공해야 하며 응답 imageUrl은 /images/로 시작하고 GET /images/{storedFileName} 요청 시 200 OK가 반환되어야 합니다.'
+    UNION ALL
+    SELECT 4,
+           'uploadJpgImage',
+           'jpg 이미지 업로드가 성공해야 합니다.'
+    UNION ALL
+    SELECT 4,
+           'uploadJpegImage',
+           'jpeg 이미지 업로드가 성공해야 합니다.'
+    UNION ALL
+    SELECT 4,
+           'uploadWebpImage',
+           'webp 이미지 업로드가 성공해야 합니다.'
+    UNION ALL
+    SELECT 4,
+           'uploadTxtFileFails',
+           '허용되지 않는 txt 확장자 파일 업로드 시 400 Bad Request가 반환되어야 합니다.'
+    UNION ALL
+    SELECT 4,
+           'uploadWrongContentTypeFails',
+           '허용되지 않는 Content-Type 파일 업로드 시 400 Bad Request가 반환되어야 합니다.'
+    UNION ALL
+    SELECT 4,
+           'uploadTooLargeImageFails',
+           '5MB를 초과하는 이미지 파일 업로드 시 400 Bad Request가 반환되어야 합니다.'
+    UNION ALL
+    SELECT 4,
+           'uploadEmptyImageFails',
+           '빈 이미지 파일 업로드 시 400 Bad Request가 반환되어야 합니다.'
+
+    UNION ALL
+    SELECT 5,
+           'updateProductImage',
+           'PUT /api/products/{productId}/image로 대표 이미지를 수정하면 새 이미지 파일이 저장되고 기존 이미지 파일은 삭제되며 ProductImage의 storedFileName과 imageUrl이 변경되어야 합니다.'
+    UNION ALL
+    SELECT 5,
+           'updateMissingProductImageFails',
+           '존재하지 않는 상품의 대표 이미지를 수정하려 하면 404 Not Found가 반환되어야 합니다.'
+    UNION ALL
+    SELECT 5,
+           'updateInvalidImageFails',
+           '허용되지 않는 확장자의 이미지로 대표 이미지 수정을 요청하면 400 Bad Request가 반환되어야 합니다.'
+    UNION ALL
+    SELECT 5,
+           'deleteProductDeletesImageDataAndFile',
+           'DELETE /api/products/{productId} 호출 시 상품과 ProductImage 데이터가 삭제되고 실제 이미지 파일도 삭제되어야 합니다.'
+    UNION ALL
+    SELECT 5,
+           'deleteMissingProductFails',
+           '존재하지 않는 상품을 삭제하려 하면 404 Not Found가 반환되어야 합니다.'
+) t ON TRUE
+WHERE p.name = 'market'
+ON CONFLICT ON CONSTRAINT uk_testcodes_project_step_method DO UPDATE
+    SET description = EXCLUDED.description;
