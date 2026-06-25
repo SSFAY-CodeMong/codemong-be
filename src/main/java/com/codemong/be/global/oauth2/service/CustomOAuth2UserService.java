@@ -40,6 +40,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
         String name = (String) attributes.get("name");
         String email = (String) attributes.get("email");
         String htmlUrl = (String) attributes.get("html_url");
+        String profilePath = (String) attributes.get("avatar_url");
 
         User user = userRepository.findBySnsId(snsId)
                 .orElse(null);
@@ -68,6 +69,7 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                                 .role(userRole)
                                 .htmlUrl(htmlUrl)
                                 .githubToken(encryptToken)
+                                .profilePath(profilePath)
                                 .build()
                         );
 
