@@ -267,6 +267,7 @@ flowchart LR
 | Redis           | 캐시 및 상태 관리                      |
 | GitHub API      | Repository, Branch, Workflow 연동 |
 | GitHub Actions  | 사용자 코드 테스트 실행                   |
+| Spring AI       | AI 피드백 요청 처리                       |
 | OpenAI API      | AI 피드백 생성                       |
 
 ### Infrastructure
