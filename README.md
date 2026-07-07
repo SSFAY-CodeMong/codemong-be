@@ -474,26 +474,25 @@ REDIS_PORT=
 
 * Spring Boot 백엔드 구조 설계
 * 프로젝트 및 Step 도메인 설계
+* Vue 기반 프론트엔드 화면 구현
 * GitHub Repository 자동 생성 기능 구현
 * 사용자 Branch 생성 및 Starter Code 세팅 흐름 구현
 * GitHub Actions `workflow_dispatch` 기반 검사 시스템 구현
 * Hidden Test 복사 및 Gradle Test 실행 구조 설계
 * Self-hosted Runner 운영 및 EC2 환경 구성
 * 테스트 결과 파싱 및 검사 상태 관리
-* AI 피드백 생성 흐름 설계
-* RAG 기반 코드 맥락 활용 구조 검토
-* AWS EC2, RDS, Nginx, systemd 기반 배포 운영
+* AWS EC2, RDS, Nginx 기반 배포 운영
+  
 
 ### 최현철
 
+* Spring Boot 백엔드 구조 설계
 * GitHub OAuth2 로그인 구현
 * 최초 로그인 시 사용자 자동 회원가입 처리
 * JWT 기반 로그인 상태 연동
-* Vue 기반 프론트엔드 화면 구현
-* 프로젝트 목록 및 상세 화면 구현
-* Step 선택 및 프로젝트 생성 플로우 UI 구현
-* 검사하기, 검사 결과, 실패/성공 화면 구현
-* AI 피드백 및 리포트 화면 구현
+* Step 선택 및 프로젝트 생성 시, 로딩화면 구현
+* AI 피드백 생성 흐름 설계
+* RAG 기반 코드 맥락을 활용한 질의 서비스 구현
 * 사용자 편의성을 고려한 UI/UX 개선
 * 백엔드 API 연동 및 화면 상태 관리
 
