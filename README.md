@@ -5,6 +5,7 @@
 > 사용자가 직접 코드를 작성하고, 테스트 검증과 AI 피드백을 통해 프로젝트를 완주할 수 있도록 돕는 개발 학습 서비스
 
 ---
+<img width="1280" height="640" alt="image" src="https://github.com/user-attachments/assets/57029173-342e-476d-afe5-8ed0c6567f52" />
 
 ## 1. 프로젝트 소개
 
